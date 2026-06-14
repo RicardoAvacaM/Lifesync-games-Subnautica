@@ -1,0 +1,23 @@
+# Carpetas de compilación
+[Bb]in/
+[Oo]bj/
+
+# Archivos de usuario e IDE (Visual Studio / Rider / VS Code)
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Logs de Unity (Subnautica usa Unity)
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Si copiaste las DLLs de Subnautica a una carpeta local para las referencias,
+# es mejor no subirlas a GitHub por temas de copyright.
+# Descomenta la siguiente línea si creaste una carpeta llamada "Libs" o "References":
+# /Libs/
+
+[Bb]ep[Ii]n[Ee]x/
