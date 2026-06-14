@@ -22,7 +22,7 @@ namespace MyFirstSubnauticaMod
         // 1.0.0
         private const string MyGUID = "com.Ricardo.MyFirstSubnauticaMod";
         private const string PluginName = "MyFirstSubnauticaMod";
-        private const string VersionString = "1.0.19";
+        private const string VersionString = "1.0.20";
 
         /// <summary>Sube este número cuando quieras forzar una sola vez los defaults de LifeSync en cfg antiguos.</summary>
         private const int LifeSyncSettingsBundleRevision = 3;
@@ -43,6 +43,9 @@ namespace MyFirstSubnauticaMod
 
         /// <summary>Bonus aditivo a la vida máxima del jugador (se aplica sobre <c>liveMixin.data.maxHealth</c>).</summary>
         public static ConfigEntry<int> PlayerMaxHealthBonus;
+
+        /// <summary>Bonus aditivo al oxígeno máximo del jugador (se aplica sobre <c>Oxygen.oxygenCapacity</c>).</summary>
+        public static ConfigEntry<int> PlayerMaxOxygenBonus;
 
         /// <summary>Instancia del plugin (Awake); para guardar cfg tras login.</summary>
         internal static MyFirstSubnauticaModPlugin Instance { get; private set; }
@@ -161,6 +164,13 @@ namespace MyFirstSubnauticaMod
                 0,
                 "Puntos extra de vida máxima del jugador (sumados al maxHealth original del LiveMixin). " +
                 "Aumenta +5 por cada canje exitoso de la mecánica PlayerMaxHealth desde el menú LifeSync.");
+
+            PlayerMaxOxygenBonus = Config.Bind(
+                "General",
+                "Player Max Oxygen Bonus",
+                0,
+                "Puntos extra de oxígeno máximo del jugador (sumados a la oxygenCapacity original). " +
+                "Aumenta +5 por cada canje exitoso de la mecánica PlayerMaxOxygen desde el menú LifeSync.");
 
             LifeSyncApiBaseUrl = Config.Bind(
                 "LifeSync API",

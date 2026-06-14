@@ -61,6 +61,21 @@ namespace MyFirstSubnauticaMod.Services
                 },
             };
 
+            // PlayerMaxOxygen — id_modifiable_mechanic_videogame = 37.
+            // Costo: 20 puntos de la dimensión 2. Efecto local: +5 al oxígeno máximo (en caliente).
+            d[37] = new RedeemRecipe
+            {
+                PointDimensionId = 2,
+                Amount = 20,
+                EffectSummary = "+5 al oxígeno máximo del jugador (se aplica al instante).",
+                ApplyLocalEffect = () =>
+                {
+                    PlayerStatsApplier.IncrementMaxOxygenAndApply(5);
+                    MyFirstSubnauticaModPlugin.Log.LogInfo(
+                        $"[LifeSync][Redeem] PlayerMaxOxygenBonus ahora = {MyFirstSubnauticaModPlugin.PlayerMaxOxygenBonus.Value}");
+                },
+            };
+
             return d;
         }
 

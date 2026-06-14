@@ -46,11 +46,17 @@ namespace MyFirstSubnauticaMod.Patches
                 player.gameObject.AddComponent<LifeSyncLoginMenu>();
                 MyFirstSubnauticaModPlugin.Log.LogInfo("[LifeSync] Menú login vinculado a Player.main (tecla en Update del jugador).");
 
-                // Aplica los bonus persistentes (p.ej. vida máxima por canjes previos) sobre el Player real.
+                // Aplica los bonus persistentes (p.ej. vida/oxígeno máximos por canjes previos) sobre el Player real.
                 if (!PlayerStatsApplier.ApplyMaxHealthBonus(rescaleCurrent: false))
                 {
                     MyFirstSubnauticaModPlugin.Log.LogWarning(
                         "[LifeSync][Stats] No se pudo aplicar el bonus de maxHealth al iniciar (LiveMixin no listo).");
+                }
+
+                if (!PlayerStatsApplier.ApplyMaxOxygenBonus(fillToFull: false))
+                {
+                    MyFirstSubnauticaModPlugin.Log.LogWarning(
+                        "[LifeSync][Stats] No se pudo aplicar el bonus de oxígeno al iniciar (Oxygen no listo).");
                 }
 
                 yield break;
