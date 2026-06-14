@@ -22,7 +22,7 @@ namespace MyFirstSubnauticaMod
         // 1.0.0
         private const string MyGUID = "com.Ricardo.MyFirstSubnauticaMod";
         private const string PluginName = "MyFirstSubnauticaMod";
-        private const string VersionString = "1.0.21";
+        private const string VersionString = "1.0.22";
 
         /// <summary>Sube este número cuando quieras forzar una sola vez los defaults de LifeSync en cfg antiguos.</summary>
         private const int LifeSyncSettingsBundleRevision = 3;
@@ -46,6 +46,12 @@ namespace MyFirstSubnauticaMod
 
         /// <summary>Bonus aditivo al oxígeno máximo del jugador (se aplica sobre <c>Oxygen.oxygenCapacity</c>).</summary>
         public static ConfigEntry<int> PlayerMaxOxygenBonus;
+
+        /// <summary>Porcentaje extra de capacidad de batería de la linterna (5 = +5% sobre la capacidad base).</summary>
+        public static ConfigEntry<int> FlashlightCapacityBonusPercent;
+
+        /// <summary>Reducción acumulada del consumo de la linterna (energía/seg restada al consumo base de 1.0).</summary>
+        public static ConfigEntry<float> FlashlightDrainReduction;
 
         /// <summary>Instancia del plugin (Awake); para guardar cfg tras login.</summary>
         internal static MyFirstSubnauticaModPlugin Instance { get; private set; }
@@ -171,6 +177,20 @@ namespace MyFirstSubnauticaMod
                 0,
                 "Puntos extra de oxígeno máximo del jugador (sumados a la oxygenCapacity original). " +
                 "Aumenta +5 por cada canje exitoso de la mecánica PlayerMaxOxygen desde el menú LifeSync.");
+
+            FlashlightCapacityBonusPercent = Config.Bind(
+                "General",
+                "Flashlight Capacity Bonus Percent",
+                0,
+                "Porcentaje extra de capacidad de batería de la linterna sobre la base (100). " +
+                "Aumenta +5 por cada canje de la mecánica FlashlightCapacity (100→105→110…).");
+
+            FlashlightDrainReduction = Config.Bind(
+                "General",
+                "Flashlight Drain Reduction",
+                0f,
+                "Energía/seg restada al consumo base de la linterna (1.0). " +
+                "Aumenta +0.05 por cada canje de FlashlightDrain; el consumo final nunca baja de 0.2.");
 
             LifeSyncApiBaseUrl = Config.Bind(
                 "LifeSync API",

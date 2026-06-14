@@ -135,6 +135,32 @@ namespace MyFirstSubnauticaMod.Services
                 },
             };
 
+            // FlashlightCapacity — id 40. Costo: 20 pts (dim 4). Efecto: +5% capacidad de batería de la linterna.
+            d[40] = new RedeemRecipe
+            {
+                Costs = new List<RedeemCost> { new RedeemCost(4, 20) },
+                EffectSummary = "+5% a la capacidad de batería de la linterna (100→105→110…).",
+                ApplyLocalEffect = () =>
+                {
+                    FlashlightModifiers.IncrementCapacityAndApply(5);
+                    MyFirstSubnauticaModPlugin.Log.LogInfo(
+                        $"[LifeSync][Redeem] FlashlightCapacityBonusPercent ahora = {MyFirstSubnauticaModPlugin.FlashlightCapacityBonusPercent.Value}%");
+                },
+            };
+
+            // FlashlightDrain — id 41. Costo: 40 pts (dim 4). Efecto: -0.05/s consumo (tope mínimo 0.2/s).
+            d[41] = new RedeemRecipe
+            {
+                Costs = new List<RedeemCost> { new RedeemCost(4, 40) },
+                EffectSummary = "-0.05/s al consumo de la linterna (no baja de 0.2/s).",
+                ApplyLocalEffect = () =>
+                {
+                    FlashlightModifiers.IncrementDrainReductionAndApply(0.05f);
+                    MyFirstSubnauticaModPlugin.Log.LogInfo(
+                        $"[LifeSync][Redeem] FlashlightDrainReduction ahora = {MyFirstSubnauticaModPlugin.FlashlightDrainReduction.Value:0.###}");
+                },
+            };
+
             return d;
         }
 
