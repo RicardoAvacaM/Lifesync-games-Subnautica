@@ -494,7 +494,7 @@ namespace MyFirstSubnauticaMod.UI
                     if (hasRecipe)
                     {
                         GUILayout.Label(
-                            $"Costo: {recipe.Amount} pts (dim {recipe.PointDimensionId}). Efecto: {recipe.EffectSummary}",
+                            $"Costo: {recipe.DescribeCosts()}. Efecto: {recipe.EffectSummary}",
                             hintStyle);
                     }
                     else if (row.id_modifiable_mechanic_videogame > 0)
@@ -623,29 +623,49 @@ namespace MyFirstSubnauticaMod.UI
                 yield break;
             }
 
-            var gameId = MyFirstSubnauticaModPlugin.LifeSyncApiTestVideogameId.Value;
-            var body = RedeemCatalog.BuildPreviewBodyJson(row.id_modifiable_mechanic_videogame, recipe);
-
-            _redeemingMechanicVideogameId = row.id_modifiable_mechanic_videogame;
-            _mechanicsStatus = $"Canjeando «{row.modifiable_mechanic_name}» — {recipe.Amount} pts (dim {recipe.PointDimensionId})…";
-            MyFirstSubnauticaModPlugin.Log.LogInfo($"[LifeSync][Redeem] POST redeem body={body}");
-
-            var task = client.PostRedeemAsync(gameId, playerId, body);
-            while (!task.IsCompleted)
+            if (recipe.Costs == null || recipe.Costs.Count == 0)
             {
-                yield return null;
+                _mechanicsStatus = "La receta no tiene costos definidos.";
+                yield break;
+            }
+
+            var gameId = MyFirstSubnauticaModPlugin.LifeSyncApiTestVideogameId.Value;
+            _redeemingMechanicVideogameId = row.id_modifiable_mechanic_videogame;
+
+            // El endpoint cobra una dimensión por POST: si la mecánica tiene varios costos, se hace uno por uno.
+            var costsCharged = 0;
+            for (var i = 0; i < recipe.Costs.Count; i++)
+            {
+                var cost = recipe.Costs[i];
+                var body = RedeemCatalog.BuildRedeemBodyJson(row.id_modifiable_mechanic_videogame, cost);
+                _mechanicsStatus =
+                    $"Canjeando «{row.modifiable_mechanic_name}» — paso {i + 1}/{recipe.Costs.Count}: {cost.Amount} pts (dim {cost.PointDimensionId})…";
+                MyFirstSubnauticaModPlugin.Log.LogInfo($"[LifeSync][Redeem] POST redeem body={body}");
+
+                var task = client.PostRedeemAsync(gameId, playerId, body);
+                while (!task.IsCompleted)
+                {
+                    yield return null;
+                }
+
+                if (!task.Result.Success)
+                {
+                    _redeemingMechanicVideogameId = 0;
+                    var partial = costsCharged > 0
+                        ? $" ATENCIÓN: ya se descontaron {costsCharged} costo(s) previos."
+                        : string.Empty;
+                    _mechanicsStatus =
+                        $"Canje rechazado en el paso {i + 1} (HTTP {(int)task.Result.StatusCode}). Revisa saldo.{partial}";
+                    MyFirstSubnauticaModPlugin.Log.LogWarning(
+                        $"[LifeSync][Redeem] FAIL paso {i + 1} HTTP {(int)task.Result.StatusCode}: {task.Result.ErrorMessage} | body={task.Result.ResponseBody}");
+                    yield return StartCoroutine(FetchDimensionsAndBalanceRoutine());
+                    yield break;
+                }
+
+                costsCharged++;
             }
 
             _redeemingMechanicVideogameId = 0;
-
-            if (!task.Result.Success)
-            {
-                _mechanicsStatus =
-                    $"Canje rechazado (HTTP {(int)task.Result.StatusCode}). Revisa saldo y vuelve a intentar.";
-                MyFirstSubnauticaModPlugin.Log.LogWarning(
-                    $"[LifeSync][Redeem] FAIL HTTP {(int)task.Result.StatusCode}: {task.Result.ErrorMessage} | body={task.Result.ResponseBody}");
-                yield break;
-            }
 
             try
             {
@@ -656,11 +676,9 @@ namespace MyFirstSubnauticaMod.UI
                 MyFirstSubnauticaModPlugin.Log.LogError($"[LifeSync][Redeem] Error aplicando efecto local: {ex}");
             }
 
-            _mechanicsStatus =
-                $"Canje OK: «{row.modifiable_mechanic_name}». Daño bonus cuchillo = {MyFirstSubnauticaModPlugin.KnifeBonusDamage.Value}. " +
-                "El cambio se aplicará la próxima vez que el cuchillo se inicialice.";
+            _mechanicsStatus = $"Canje OK: «{row.modifiable_mechanic_name}». {recipe.EffectSummary}";
             MyFirstSubnauticaModPlugin.Log.LogInfo(
-                $"[LifeSync][Redeem] OK ({row.modifiable_mechanic_name}). Bonus cuchillo = {MyFirstSubnauticaModPlugin.KnifeBonusDamage.Value}.");
+                $"[LifeSync][Redeem] OK ({row.modifiable_mechanic_name}); {recipe.Costs.Count} costo(s) descontado(s).");
 
             // Refresca silenciosamente las dimensiones para que el usuario vea el saldo descontado al cambiar de pestaña.
             yield return StartCoroutine(FetchDimensionsAndBalanceRoutine());

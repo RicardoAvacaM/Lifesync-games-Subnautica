@@ -136,5 +136,34 @@ namespace MyFirstSubnauticaMod.Services
             MyFirstSubnauticaModPlugin.Instance?.Config.Save();
             ApplyMaxOxygenBonus(fillToFull: true);
         }
+
+        /// <summary>Cura la barra de vida del jugador al máximo actual (<c>liveMixin.ResetHealth()</c>).</summary>
+        internal static bool HealToFull()
+        {
+            var player = Player.main;
+            if (player == null || player.liveMixin == null)
+            {
+                return false;
+            }
+
+            player.liveMixin.ResetHealth();
+            MyFirstSubnauticaModPlugin.Log.LogInfo(
+                $"[LifeSync][Stats] Vida curada al máximo. health = {player.liveMixin.health:0.##}.");
+            return true;
+        }
+
+        /// <summary>Rellena el oxígeno del jugador hasta la capacidad total (<c>oxygenMgr.Restore()</c>).</summary>
+        internal static bool RestoreOxygenToFull()
+        {
+            var player = Player.main;
+            if (player == null || player.oxygenMgr == null)
+            {
+                return false;
+            }
+
+            player.oxygenMgr.Restore();
+            MyFirstSubnauticaModPlugin.Log.LogInfo("[LifeSync][Stats] Oxígeno rellenado al máximo.");
+            return true;
+        }
     }
 }
