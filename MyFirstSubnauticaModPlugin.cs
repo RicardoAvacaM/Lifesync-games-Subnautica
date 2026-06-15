@@ -22,7 +22,7 @@ namespace MyFirstSubnauticaMod
         // 1.0.0
         private const string MyGUID = "com.Ricardo.MyFirstSubnauticaMod";
         private const string PluginName = "MyFirstSubnauticaMod";
-        private const string VersionString = "1.0.22";
+        private const string VersionString = "1.0.23";
 
         /// <summary>Sube este número cuando quieras forzar una sola vez los defaults de LifeSync en cfg antiguos.</summary>
         private const int LifeSyncSettingsBundleRevision = 3;
@@ -52,6 +52,12 @@ namespace MyFirstSubnauticaMod
 
         /// <summary>Reducción acumulada del consumo de la linterna (energía/seg restada al consumo base de 1.0).</summary>
         public static ConfigEntry<float> FlashlightDrainReduction;
+
+        /// <summary>Porcentaje extra de capacidad de batería del deslizador (5 = +5% sobre la capacidad base).</summary>
+        public static ConfigEntry<int> SeaglideCapacityBonusPercent;
+
+        /// <summary>Velocidad extra acumulada del deslizador (sumada a la velocidad base de 25, tope 48).</summary>
+        public static ConfigEntry<float> SeaglideSpeedBonus;
 
         /// <summary>Instancia del plugin (Awake); para guardar cfg tras login.</summary>
         internal static MyFirstSubnauticaModPlugin Instance { get; private set; }
@@ -191,6 +197,20 @@ namespace MyFirstSubnauticaMod
                 0f,
                 "Energía/seg restada al consumo base de la linterna (1.0). " +
                 "Aumenta +0.05 por cada canje de FlashlightDrain; el consumo final nunca baja de 0.2.");
+
+            SeaglideCapacityBonusPercent = Config.Bind(
+                "General",
+                "Seaglide Capacity Bonus Percent",
+                0,
+                "Porcentaje extra de capacidad de batería del deslizador sobre la base (100). " +
+                "Aumenta +5 por cada canje de SeaglideCapacity (100→105→110…).");
+
+            SeaglideSpeedBonus = Config.Bind(
+                "General",
+                "Seaglide Speed Bonus",
+                0f,
+                "Velocidad extra sumada a la base del deslizador (25). " +
+                "Aumenta +4 por cada canje de SeaglideSpeed; la velocidad final nunca supera 48.");
 
             LifeSyncApiBaseUrl = Config.Bind(
                 "LifeSync API",

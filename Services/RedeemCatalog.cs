@@ -161,6 +161,32 @@ namespace MyFirstSubnauticaMod.Services
                 },
             };
 
+            // SeaglideCapacity — id 42. Costo: 20 pts (dim 4). Efecto: +5% capacidad de batería del deslizador.
+            d[42] = new RedeemRecipe
+            {
+                Costs = new List<RedeemCost> { new RedeemCost(4, 20) },
+                EffectSummary = "+5% a la capacidad de batería del deslizador (100→105→110…).",
+                ApplyLocalEffect = () =>
+                {
+                    SeaglideModifiers.IncrementCapacityAndApply(5);
+                    MyFirstSubnauticaModPlugin.Log.LogInfo(
+                        $"[LifeSync][Redeem] SeaglideCapacityBonusPercent ahora = {MyFirstSubnauticaModPlugin.SeaglideCapacityBonusPercent.Value}%");
+                },
+            };
+
+            // SeaglideSpeed — id 43. Costo: 50 pts (dim 4). Efecto: +4 velocidad del deslizador (tope 48).
+            d[43] = new RedeemRecipe
+            {
+                Costs = new List<RedeemCost> { new RedeemCost(4, 50) },
+                EffectSummary = "+4 a la velocidad del deslizador (tope total 48).",
+                ApplyLocalEffect = () =>
+                {
+                    SeaglideModifiers.IncrementSpeedAndApply(4f);
+                    MyFirstSubnauticaModPlugin.Log.LogInfo(
+                        $"[LifeSync][Redeem] SeaglideSpeedBonus ahora = {MyFirstSubnauticaModPlugin.SeaglideSpeedBonus.Value:0.##}");
+                },
+            };
+
             return d;
         }
 

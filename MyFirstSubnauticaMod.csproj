@@ -87,6 +87,7 @@
     <Compile Include="Patches\LifeSyncPlayerMenuAttachPatch.cs" />
     <Compile Include="Patches\PlayerToolPatches.cs" />
     <Compile Include="Patches\FlashlightModifiersPatch.cs" />
+    <Compile Include="Patches\SeaglideModifiersPatch.cs" />
     <Compile Include="MyFirstSubnauticaModPlugin.cs" />
     <Compile Include="Input\LifeSyncGameInputPaths.cs" />
     <Compile Include="Input\LifeSyncInputRegistration.cs" />
@@ -98,6 +99,7 @@
     <Compile Include="Services\RedeemCatalog.cs" />
     <Compile Include="Services\PlayerStatsApplier.cs" />
     <Compile Include="Services\FlashlightModifiers.cs" />
+    <Compile Include="Services\SeaglideModifiers.cs" />
     <Compile Include="Utils\ModUtils.cs" />
   </ItemGroup>
   <ItemGroup />
