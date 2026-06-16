@@ -1,33 +1,30 @@
 using System.Collections;
+using System.Collections.Generic;
 using MyFirstSubnauticaMod.Input;
 using MyFirstSubnauticaMod.Services;
 using MyFirstSubnauticaMod.Services.Models;
+using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 namespace MyFirstSubnauticaMod.UI
 {
     /// <summary>
-    /// Menú IMGUI: login solo sin token guardado; con token, la tecla abre solo el panel de sesión (duración / renovar).
+    /// Menú LifeSync en uGUI (Canvas + TextMeshPro) con estética PDA. Sin token muestra el login;
+    /// con token, abre el panel de sesión (Token / Puntos / Mecánicas). La lógica de red es la misma de siempre.
     /// </summary>
     internal sealed class LifeSyncLoginMenu : MonoBehaviour
     {
-        private const int WindowId = 7701;
-
         internal static LifeSyncLoginMenu Instance { get; private set; }
 
-        private enum MenuPanel
-        {
-            Login,
-            Session,
-        }
+        private enum MenuPanel { Login, Session }
 
-        private enum SessionTab
-        {
-            Token,
-            Points,
-            Mechanics,
-        }
+        private enum SessionTab { Token, Points, Mechanics }
 
+        private enum SessionRequestKind { None, Remaining, Refresh }
+
+        // ----- Estado (igual que la versión IMGUI) -----
         private bool _show;
         private MenuPanel _panel = MenuPanel.Login;
         private SessionTab _sessionTab = SessionTab.Token;
@@ -36,27 +33,72 @@ namespace MyFirstSubnauticaMod.UI
         private string _status = string.Empty;
         private string _sessionStatus = string.Empty;
         private bool _submitting;
-        private enum SessionRequestKind
-        {
-            None,
-            Remaining,
-            Refresh,
-        }
-
         private SessionRequestKind _sessionRequest;
         private DimensionPointEntry[] _dimensionEntries;
         private string _pointsStatus = string.Empty;
         private bool _pointsBusy;
-        private Vector2 _pointsScroll;
         private ModifiableMechanicRow[] _mechanicRows;
         private string _mechanicsStatus = string.Empty;
         private bool _mechanicsBusy;
-        private Vector2 _mechanicsScroll;
         private int _redeemingMechanicVideogameId;
-        private Rect _windowRect = new Rect(20, 20, 340, 260);
-        private bool _positioned;
         private bool _pausedByMenu;
         private float _timeScaleBeforeMenu = 1f;
+
+        // EventSystem propio para que nuestros botones reciban clics (el FPSInputModule del juego filtra canvases).
+        private EventSystem _ownEventSystem;
+        private readonly List<EventSystem> _suspendedEventSystems = new List<EventSystem>();
+
+        // ----- uGUI -----
+        private bool _uiBuilt;
+        private GameObject _canvasGo;
+        private GameObject _loginPanel;
+        private GameObject _sessionPanel;
+        private TextMeshProUGUI _titleLabel;
+
+        private TMP_InputField _usernameInput;
+        private TMP_InputField _passwordInput;
+        private Button _loginButton;
+        private Button _loginCancelButton;
+        private TextMeshProUGUI _loginStatusLabel;
+
+        private Button _tabTokenButton;
+        private Button _tabPointsButton;
+        private Button _tabMechanicsButton;
+        private GameObject _tokenContent;
+        private GameObject _pointsContent;
+        private GameObject _mechanicsContent;
+        private Button _logoutButton;
+        private Button _exitButton;
+
+        private Button _btnRemaining;
+        private Button _btnRefresh;
+        private TextMeshProUGUI _tokenStatusLabel;
+
+        private TextMeshProUGUI _pointsInfoLabel;
+        private Button _btnLoadPoints;
+        private Button _btnRefreshWhoami;
+        private TextMeshProUGUI _pointsStatusLabel;
+        private RectTransform _pointsListContent;
+
+        private TextMeshProUGUI _mechHeaderLabel;
+        private Button _btnLoadMechanics;
+        private TextMeshProUGUI _mechStatusLabel;
+        private RectTransform _mechListContent;
+
+        // Para rebuild de listas dinámicas (solo cuando cambian los datos).
+        private DimensionPointEntry[] _lastPointsRef;
+        private ModifiableMechanicRow[] _lastMechRef;
+        private int _lastRedeemingId = -1;
+        private bool _lastMechBusy;
+        private readonly List<MechRowRefs> _mechRowRefs = new List<MechRowRefs>();
+
+        private struct MechRowRefs
+        {
+            public int MechanicVideogameId;
+            public bool HasRecipe;
+            public Button RedeemButton;
+            public TMP_Text RedeemLabel;
+        }
 
         private void Awake()
         {
@@ -65,6 +107,7 @@ namespace MyFirstSubnauticaMod.UI
 
         private void OnDestroy()
         {
+            SetInputActive(false);
             ReleaseGameplayPause();
             if (Instance == this)
             {
@@ -93,10 +136,17 @@ namespace MyFirstSubnauticaMod.UI
                 ToggleWindow();
             }
 
+            if (_show && UnityEngine.Input.GetKeyDown(KeyCode.Escape))
+            {
+                CloseMenu();
+                return;
+            }
+
             if (_show)
             {
                 Cursor.visible = true;
                 Cursor.lockState = CursorLockMode.None;
+                SyncUi();
             }
         }
 
@@ -108,24 +158,46 @@ namespace MyFirstSubnauticaMod.UI
                 _status = string.Empty;
                 _sessionStatus = string.Empty;
                 _pointsStatus = string.Empty;
+                _mechanicsStatus = string.Empty;
                 _sessionTab = SessionTab.Token;
                 _dimensionEntries = null;
-                // Con Bearer en cfg: siempre panel de sesión al pulsar la tecla. Sin token: formulario de login (primera vez o tras cerrar sesión).
+                _mechanicRows = null;
+
                 var bearer = MyFirstSubnauticaModPlugin.LifeSyncApiBearerToken.Value;
                 _panel = HasStoredBearer(bearer) ? MenuPanel.Session : MenuPanel.Login;
-                AdjustWindowSizeForPanel();
+
+                EnsureUi();
+                _canvasGo.SetActive(true);
+                ApplyPanelVisibility();
                 ApplyGameplayPause(true);
                 ApplyCursorForMenu(true);
+                SetInputActive(true);
             }
             else
             {
-                _password = string.Empty;
-                ReleaseGameplayPause();
-                ApplyCursorForMenu(false);
+                CloseMenu();
             }
         }
 
-        /// <summary>Pausa el mundo con <see cref="Time.timeScale"/> mientras el menú LifeSync está abierto.</summary>
+        private void CloseMenu()
+        {
+            _show = false;
+            _password = string.Empty;
+            if (_passwordInput != null)
+            {
+                _passwordInput.text = string.Empty;
+            }
+
+            if (_canvasGo != null)
+            {
+                _canvasGo.SetActive(false);
+            }
+
+            SetInputActive(false);
+            ReleaseGameplayPause();
+            ApplyCursorForMenu(false);
+        }
+
         private void ApplyGameplayPause(bool pause)
         {
             if (pause)
@@ -160,51 +232,6 @@ namespace MyFirstSubnauticaMod.UI
             return !string.IsNullOrWhiteSpace(bearer);
         }
 
-        private void AdjustWindowSizeForPanel()
-        {
-            _windowRect.width = 360f;
-            if (_panel == MenuPanel.Session)
-            {
-                switch (_sessionTab)
-                {
-                    case SessionTab.Points:
-                        _windowRect.height = 460f;
-                        break;
-                    case SessionTab.Mechanics:
-                        _windowRect.height = 500f;
-                        break;
-                    default:
-                        _windowRect.height = 320f;
-                        break;
-                }
-            }
-            else
-            {
-                _windowRect.height = 260f;
-            }
-        }
-
-        /// <summary>Borra token en cfg y cliente; muestra de nuevo el login dentro del menú abierto.</summary>
-        private void LogOutAndShowLogin()
-        {
-            MyFirstSubnauticaModPlugin.LifeSyncApiBearerToken.Value = string.Empty;
-            MyFirstSubnauticaModPlugin.LifeSyncCachedPlayerId.Value = 0;
-            var client = MyFirstSubnauticaModPlugin.ResolveApiClient();
-            client?.SetBearerToken(string.Empty);
-            MyFirstSubnauticaModPlugin.Instance?.Config.Save();
-            _password = string.Empty;
-            _sessionStatus = string.Empty;
-            _pointsStatus = string.Empty;
-            _dimensionEntries = null;
-            _mechanicRows = null;
-            _mechanicsStatus = string.Empty;
-            _sessionTab = SessionTab.Token;
-            _status = "Sesión cerrada. Introduce usuario y contraseña para volver a entrar.";
-            _panel = MenuPanel.Login;
-            AdjustWindowSizeForPanel();
-            MyFirstSubnauticaModPlugin.Log.LogInfo("[LifeSync][Auth] Sesión cerrada (token e id jugador borrados del .cfg).");
-        }
-
         private static void ApplyCursorForMenu(bool open)
         {
             if (Player.main == null)
@@ -224,311 +251,586 @@ namespace MyFirstSubnauticaMod.UI
             }
         }
 
-        private void OnGUI()
+        /// <summary>Borra token en cfg y cliente; muestra de nuevo el login dentro del menú abierto.</summary>
+        private void LogOutAndShowLogin()
         {
-            if (!Player.main)
+            MyFirstSubnauticaModPlugin.LifeSyncApiBearerToken.Value = string.Empty;
+            MyFirstSubnauticaModPlugin.LifeSyncCachedPlayerId.Value = 0;
+            var client = MyFirstSubnauticaModPlugin.ResolveApiClient();
+            client?.SetBearerToken(string.Empty);
+            MyFirstSubnauticaModPlugin.Instance?.Config.Save();
+            _password = string.Empty;
+            if (_passwordInput != null)
             {
-                return;
+                _passwordInput.text = string.Empty;
             }
 
-            if (_show)
-            {
-                GUI.depth = -2000;
-            }
-
-            if (!_positioned)
-            {
-                AdjustWindowSizeForPanel();
-                _windowRect.x = (Screen.width - _windowRect.width) * 0.5f;
-                _windowRect.y = (Screen.height - _windowRect.height) * 0.5f;
-                _positioned = true;
-            }
-
-            if (Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Escape)
-            {
-                if (_show)
-                {
-                    _show = false;
-                    _password = string.Empty;
-                    ReleaseGameplayPause();
-                    ApplyCursorForMenu(false);
-                    Event.current.Use();
-                }
-
-                return;
-            }
-
-            if (!_show)
-            {
-                return;
-            }
-
-            var title = _panel == MenuPanel.Login
-                ? "LifeSync — Iniciar sesión"
-                : "LifeSync — Sesión";
-
-            _windowRect = GUILayout.Window(WindowId, _windowRect, DrawWindow, title);
+            _sessionStatus = string.Empty;
+            _pointsStatus = string.Empty;
+            _mechanicRows = null;
+            _mechanicsStatus = string.Empty;
+            _dimensionEntries = null;
+            _sessionTab = SessionTab.Token;
+            _status = "Sesión cerrada. Introduce usuario y contraseña para volver a entrar.";
+            _panel = MenuPanel.Login;
+            ApplyPanelVisibility();
+            MyFirstSubnauticaModPlugin.Log.LogInfo("[LifeSync][Auth] Sesión cerrada (token e id jugador borrados del .cfg).");
         }
 
-        private void DrawWindow(int id)
+        // ===================== Construcción de UI =====================
+
+        private void EnsureUi()
         {
-            if (_panel == MenuPanel.Login)
+            if (_uiBuilt && _canvasGo != null)
             {
-                DrawLoginPanel();
+                return;
+            }
+
+            BuildUi();
+            _uiBuilt = true;
+        }
+
+        /// <summary>
+        /// Activa/desactiva un EventSystem propio con <see cref="StandaloneInputModule"/> para que nuestros
+        /// botones reciban clics. Mientras está activo, suspende los demás EventSystems (el del juego usa un
+        /// módulo que filtra canvases ajenos); se restauran al cerrar. El juego está en pausa, así que es seguro.
+        /// </summary>
+        private void SetInputActive(bool active)
+        {
+            if (active)
+            {
+                _suspendedEventSystems.Clear();
+                foreach (var es in Object.FindObjectsOfType<EventSystem>())
+                {
+                    if (es != null && es != _ownEventSystem && es.enabled)
+                    {
+                        es.enabled = false;
+                        _suspendedEventSystems.Add(es);
+                    }
+                }
+
+                if (_ownEventSystem == null)
+                {
+                    try
+                    {
+                        var go = new GameObject("LifeSyncEventSystem");
+                        DontDestroyOnLoad(go);
+                        _ownEventSystem = go.AddComponent<EventSystem>();
+                        var module = go.AddComponent<StandaloneInputModule>();
+                        module.forceModuleActive = true;
+                    }
+                    catch (System.Exception ex)
+                    {
+                        MyFirstSubnauticaModPlugin.Log.LogWarning($"[LifeSync][UI] No se pudo crear EventSystem propio: {ex.Message}");
+                        return;
+                    }
+                }
+
+                _ownEventSystem.gameObject.SetActive(true);
+                _ownEventSystem.enabled = true;
+                EventSystem.current = _ownEventSystem;
             }
             else
             {
-                DrawSessionPanel();
-            }
+                if (_ownEventSystem != null)
+                {
+                    _ownEventSystem.enabled = false;
+                    _ownEventSystem.gameObject.SetActive(false);
+                }
 
-            GUI.DragWindow();
-        }
+                foreach (var es in _suspendedEventSystems)
+                {
+                    if (es != null)
+                    {
+                        es.enabled = true;
+                        EventSystem.current = es;
+                    }
+                }
 
-        private void DrawLoginPanel()
-        {
-            GUILayout.Label("Usuario (email en lsg-auth):");
-            GUI.enabled = !_submitting;
-            _username = GUILayout.TextField(_username, 128);
-
-            GUILayout.Label("Contraseña:");
-            _password = GUILayout.PasswordField(_password, '*', 64);
-
-            if (GUILayout.Button(_submitting ? "Conectando…" : "Iniciar sesión en LifeSync") && !_submitting)
-            {
-                StartCoroutine(LoginRoutine());
-            }
-
-            if (GUILayout.Button("Cancelar"))
-            {
-                _show = false;
-                _password = string.Empty;
-                ReleaseGameplayPause();
-                ApplyCursorForMenu(false);
-            }
-
-            GUI.enabled = true;
-
-            if (!string.IsNullOrEmpty(_status))
-            {
-                GUILayout.Space(6);
-                GUILayout.Label(_status);
+                _suspendedEventSystems.Clear();
             }
         }
 
-        private void DrawSessionPanel()
+        private void BuildUi()
         {
-            GUILayout.Label("Cuenta vinculada — elige sección:");
-            var newTab = (SessionTab)GUILayout.Toolbar((int)_sessionTab, new[] { "Token", "Puntos", "Mecánicas" });
-            if (newTab != _sessionTab)
+            _canvasGo = new GameObject("LifeSyncCanvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+            var canvas = _canvasGo.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = 30000;
+            var scaler = _canvasGo.GetComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.matchWidthOrHeight = 0.5f;
+
+            // Tinte oscuro de fondo para enfocar la atención.
+            var dim = PdaUi.CreatePanel("Dim", _canvasGo.transform, new Color(0f, 0f, 0f, 0.55f), false);
+            PdaUi.Stretch(dim.rectTransform, 0, 0, 0, 0);
+
+            // Ventana central.
+            var window = PdaUi.CreatePanel("Window", _canvasGo.transform, PdaTheme.Background);
+            var wrt = window.rectTransform;
+            wrt.anchorMin = new Vector2(0.5f, 0.5f);
+            wrt.anchorMax = new Vector2(0.5f, 0.5f);
+            wrt.pivot = new Vector2(0.5f, 0.5f);
+            wrt.sizeDelta = new Vector2(600f, 680f);
+
+            // Barra de título.
+            var header = PdaUi.CreatePanel("Header", wrt, PdaTheme.PanelRaised);
+            header.rectTransform.anchorMin = new Vector2(0f, 1f);
+            header.rectTransform.anchorMax = new Vector2(1f, 1f);
+            header.rectTransform.pivot = new Vector2(0.5f, 1f);
+            header.rectTransform.sizeDelta = new Vector2(-20f, 54f);
+            header.rectTransform.anchoredPosition = new Vector2(0f, -10f);
+
+            _titleLabel = PdaUi.CreateLabel("Title", header.rectTransform, "LIFESYNC", 24, PdaTheme.Accent, TextAlignmentOptions.Left, false);
+            PdaUi.Stretch(_titleLabel.rectTransform, 18, 4, 18, 4);
+
+            BuildLoginPanel(wrt);
+            BuildSessionPanel(wrt);
+
+            _canvasGo.SetActive(false);
+        }
+
+        private void BuildLoginPanel(RectTransform window)
+        {
+            _loginPanel = PdaUi.CreateRect("LoginPanel", window).gameObject;
+            var rt = (RectTransform)_loginPanel.transform;
+            PdaUi.Stretch(rt, 16, 74, 16, 16);
+
+            var y = 0f;
+            var lblUser = PdaUi.CreateLabel("UserLbl", rt, "Usuario (email en lsg-auth)", 15, PdaTheme.TextMuted, TextAlignmentOptions.Left, false);
+            PlaceTop(lblUser.rectTransform, ref y, 24f, 4f);
+
+            _usernameInput = PdaUi.CreateInput("UserInput", rt, "tu-correo@usach.cl", password: false);
+            PlaceTop(_usernameInput.GetComponent<RectTransform>(), ref y, 46f, 14f);
+
+            var lblPass = PdaUi.CreateLabel("PassLbl", rt, "Contraseña", 15, PdaTheme.TextMuted, TextAlignmentOptions.Left, false);
+            PlaceTop(lblPass.rectTransform, ref y, 24f, 4f);
+
+            _passwordInput = PdaUi.CreateInput("PassInput", rt, "••••••••", password: true);
+            PlaceTop(_passwordInput.GetComponent<RectTransform>(), ref y, 46f, 20f);
+
+            _loginButton = PdaUi.CreateButton("LoginBtn", rt, "INICIAR SESIÓN EN LIFESYNC", () =>
             {
-                _sessionTab = newTab;
-                AdjustWindowSizeForPanel();
+                if (!_submitting)
+                {
+                    StartCoroutine(LoginRoutine());
+                }
+            });
+            PlaceTop(_loginButton.GetComponent<RectTransform>(), ref y, 52f, 10f);
+
+            _loginCancelButton = PdaUi.CreateButton("CancelBtn", rt, "Cancelar", CloseMenu, 15);
+            PlaceTop(_loginCancelButton.GetComponent<RectTransform>(), ref y, 40f, 16f);
+
+            _loginStatusLabel = PdaUi.CreateLabel("LoginStatus", rt, string.Empty, 14, PdaTheme.AccentOrange, TextAlignmentOptions.TopLeft);
+            _loginStatusLabel.rectTransform.anchorMin = new Vector2(0f, 0f);
+            _loginStatusLabel.rectTransform.anchorMax = new Vector2(1f, 1f);
+            _loginStatusLabel.rectTransform.offsetMin = new Vector2(2f, 0f);
+            _loginStatusLabel.rectTransform.offsetMax = new Vector2(-2f, -(y + 4f));
+        }
+
+        private void BuildSessionPanel(RectTransform window)
+        {
+            _sessionPanel = PdaUi.CreateRect("SessionPanel", window).gameObject;
+            var rt = (RectTransform)_sessionPanel.transform;
+            PdaUi.Stretch(rt, 16, 74, 16, 16);
+
+            // Fila de pestañas.
+            var tabs = PdaUi.CreateRect("Tabs", rt);
+            tabs.anchorMin = new Vector2(0f, 1f);
+            tabs.anchorMax = new Vector2(1f, 1f);
+            tabs.pivot = new Vector2(0.5f, 1f);
+            tabs.sizeDelta = new Vector2(0f, 44f);
+            tabs.anchoredPosition = Vector2.zero;
+            var tabsLayout = tabs.gameObject.AddComponent<HorizontalLayoutGroup>();
+            tabsLayout.spacing = 8f;
+            tabsLayout.childControlWidth = true;
+            tabsLayout.childControlHeight = true;
+            tabsLayout.childForceExpandWidth = true;
+            tabsLayout.childForceExpandHeight = true;
+
+            _tabTokenButton = PdaUi.CreateButton("TabToken", tabs, "TOKEN", () => SetTab(SessionTab.Token), 15);
+            _tabPointsButton = PdaUi.CreateButton("TabPoints", tabs, "PUNTOS", () => SetTab(SessionTab.Points), 15);
+            _tabMechanicsButton = PdaUi.CreateButton("TabMech", tabs, "MECÁNICAS", () => SetTab(SessionTab.Mechanics), 15);
+
+            // Footer (cerrar sesión / salir).
+            var footer = PdaUi.CreateRect("Footer", rt);
+            footer.anchorMin = new Vector2(0f, 0f);
+            footer.anchorMax = new Vector2(1f, 0f);
+            footer.pivot = new Vector2(0.5f, 0f);
+            footer.sizeDelta = new Vector2(0f, 46f);
+            footer.anchoredPosition = Vector2.zero;
+            var footerLayout = footer.gameObject.AddComponent<HorizontalLayoutGroup>();
+            footerLayout.spacing = 8f;
+            footerLayout.childControlWidth = true;
+            footerLayout.childControlHeight = true;
+            footerLayout.childForceExpandWidth = true;
+            footerLayout.childForceExpandHeight = true;
+            _logoutButton = PdaUi.CreateButton("Logout", footer, "Cerrar sesión", LogOutAndShowLogin, 15);
+            _exitButton = PdaUi.CreateButton("Exit", footer, "Salir del menú", CloseMenu, 15);
+
+            // Área de contenido entre pestañas y footer.
+            var content = PdaUi.CreateRect("Content", rt);
+            PdaUi.Stretch(content, 0, 52, 0, 54);
+
+            BuildTokenTab(content);
+            BuildPointsTab(content);
+            BuildMechanicsTab(content);
+        }
+
+        private void BuildTokenTab(RectTransform content)
+        {
+            _tokenContent = PdaUi.CreateRect("TokenTab", content).gameObject;
+            var rt = (RectTransform)_tokenContent.transform;
+            PdaUi.Stretch(rt, 0, 0, 0, 0);
+
+            var y = 0f;
+            var info = PdaUi.CreateLabel("Info", rt,
+                "Consulta cuánto falta para que venza el token o renuévalo sin escribir la contraseña.",
+                14, PdaTheme.TextMuted, TextAlignmentOptions.TopLeft);
+            PlaceTop(info.rectTransform, ref y, 44f, 10f);
+
+            _btnRemaining = PdaUi.CreateButton("BtnRemaining", rt, "Tiempo restante del token",
+                () => StartCoroutine(FetchTokenRemainingRoutine()));
+            PlaceTop(_btnRemaining.GetComponent<RectTransform>(), ref y, 46f, 8f);
+
+            _btnRefresh = PdaUi.CreateButton("BtnRefresh", rt, "Renovar token",
+                () => StartCoroutine(RefreshTokenRoutine()));
+            PlaceTop(_btnRefresh.GetComponent<RectTransform>(), ref y, 46f, 14f);
+
+            var statusBox = PdaUi.CreatePanel("StatusBox", rt, PdaTheme.Panel);
+            statusBox.rectTransform.anchorMin = new Vector2(0f, 0f);
+            statusBox.rectTransform.anchorMax = new Vector2(1f, 1f);
+            statusBox.rectTransform.offsetMin = new Vector2(0f, 0f);
+            statusBox.rectTransform.offsetMax = new Vector2(0f, -(y + 4f));
+            _tokenStatusLabel = PdaUi.CreateLabel("TokenStatus", statusBox.rectTransform, string.Empty, 14, PdaTheme.TextPrimary);
+            PdaUi.Stretch(_tokenStatusLabel.rectTransform, 12, 10, 12, 10);
+        }
+
+        private void BuildPointsTab(RectTransform content)
+        {
+            _pointsContent = PdaUi.CreateRect("PointsTab", content).gameObject;
+            var rt = (RectTransform)_pointsContent.transform;
+            PdaUi.Stretch(rt, 0, 0, 0, 0);
+
+            var y = 0f;
+            _pointsInfoLabel = PdaUi.CreateLabel("PointsInfo", rt, string.Empty, 13, PdaTheme.TextMuted, TextAlignmentOptions.TopLeft);
+            PlaceTop(_pointsInfoLabel.rectTransform, ref y, 38f, 8f);
+
+            var buttons = PdaUi.CreateRect("PointsBtns", rt);
+            buttons.anchorMin = new Vector2(0f, 1f);
+            buttons.anchorMax = new Vector2(1f, 1f);
+            buttons.pivot = new Vector2(0.5f, 1f);
+            buttons.sizeDelta = new Vector2(0f, 44f);
+            buttons.anchoredPosition = new Vector2(0f, -y);
+            var bl = buttons.gameObject.AddComponent<HorizontalLayoutGroup>();
+            bl.spacing = 8f;
+            bl.childControlWidth = true;
+            bl.childControlHeight = true;
+            bl.childForceExpandWidth = true;
+            bl.childForceExpandHeight = true;
+            _btnLoadPoints = PdaUi.CreateButton("LoadPoints", buttons, "Cargar puntos", () => StartCoroutine(FetchDimensionsAndBalanceRoutine()), 14);
+            _btnRefreshWhoami = PdaUi.CreateButton("Whoami", buttons, "Refrescar id (whoami)", () => StartCoroutine(CachePlayerIdAfterAuthRoutine(true)), 14);
+            y += 44f + 8f;
+
+            _pointsStatusLabel = PdaUi.CreateLabel("PointsStatus", rt, string.Empty, 13, PdaTheme.AccentOrange, TextAlignmentOptions.TopLeft);
+            PlaceTop(_pointsStatusLabel.rectTransform, ref y, 36f, 6f);
+
+            ScrollRect sr;
+            _pointsListContent = PdaUi.CreateScroll("PointsScroll", rt, out sr);
+            var srt = (RectTransform)sr.transform;
+            srt.anchorMin = new Vector2(0f, 0f);
+            srt.anchorMax = new Vector2(1f, 1f);
+            srt.offsetMin = new Vector2(0f, 0f);
+            srt.offsetMax = new Vector2(0f, -y);
+        }
+
+        private void BuildMechanicsTab(RectTransform content)
+        {
+            _mechanicsContent = PdaUi.CreateRect("MechTab", content).gameObject;
+            var rt = (RectTransform)_mechanicsContent.transform;
+            PdaUi.Stretch(rt, 0, 0, 0, 0);
+
+            var y = 0f;
+            _mechHeaderLabel = PdaUi.CreateLabel("MechHeader", rt, string.Empty, 13, PdaTheme.TextMuted, TextAlignmentOptions.TopLeft);
+            PlaceTop(_mechHeaderLabel.rectTransform, ref y, 38f, 8f);
+
+            _btnLoadMechanics = PdaUi.CreateButton("LoadMech", rt, "Cargar mecánicas", () => StartCoroutine(FetchMechanicsRoutine()));
+            PlaceTop(_btnLoadMechanics.GetComponent<RectTransform>(), ref y, 44f, 8f);
+
+            _mechStatusLabel = PdaUi.CreateLabel("MechStatus", rt, string.Empty, 13, PdaTheme.AccentOrange, TextAlignmentOptions.TopLeft);
+            PlaceTop(_mechStatusLabel.rectTransform, ref y, 36f, 6f);
+
+            ScrollRect sr;
+            _mechListContent = PdaUi.CreateScroll("MechScroll", rt, out sr);
+            var srt = (RectTransform)sr.transform;
+            srt.anchorMin = new Vector2(0f, 0f);
+            srt.anchorMax = new Vector2(1f, 1f);
+            srt.offsetMin = new Vector2(0f, 0f);
+            srt.offsetMax = new Vector2(0f, -y);
+        }
+
+        /// <summary>Coloca un rect a lo ancho, anclado arriba, a la altura indicada e incrementa el cursor y.</summary>
+        private static void PlaceTop(RectTransform rt, ref float y, float height, float gap)
+        {
+            rt.anchorMin = new Vector2(0f, 1f);
+            rt.anchorMax = new Vector2(1f, 1f);
+            rt.pivot = new Vector2(0.5f, 1f);
+            rt.sizeDelta = new Vector2(0f, height);
+            rt.anchoredPosition = new Vector2(0f, -y);
+            y += height + gap;
+        }
+
+        // ===================== Sincronización de UI =====================
+
+        private void SetTab(SessionTab tab)
+        {
+            _sessionTab = tab;
+            ApplyPanelVisibility();
+        }
+
+        private void ApplyPanelVisibility()
+        {
+            if (!_uiBuilt)
+            {
+                return;
             }
 
-            GUILayout.Space(8);
+            var isLogin = _panel == MenuPanel.Login;
+            _loginPanel.SetActive(isLogin);
+            _sessionPanel.SetActive(!isLogin);
+            _titleLabel.text = isLogin ? "LIFESYNC — INICIAR SESIÓN" : "LIFESYNC — SESIÓN";
 
-            switch (_sessionTab)
+            if (!isLogin)
             {
-                case SessionTab.Token:
-                    DrawSessionTokenTab();
-                    break;
-                case SessionTab.Points:
-                    DrawSessionPointsTab();
-                    break;
-                case SessionTab.Mechanics:
-                    DrawSessionMechanicsTab();
-                    break;
-            }
-
-            GUILayout.Space(10);
-
-            if (GUILayout.Button("Cerrar sesión"))
-            {
-                LogOutAndShowLogin();
-            }
-
-            if (GUILayout.Button("Salir del menú"))
-            {
-                _show = false;
-                _password = string.Empty;
-                ReleaseGameplayPause();
-                ApplyCursorForMenu(false);
+                _tokenContent.SetActive(_sessionTab == SessionTab.Token);
+                _pointsContent.SetActive(_sessionTab == SessionTab.Points);
+                _mechanicsContent.SetActive(_sessionTab == SessionTab.Mechanics);
+                HighlightTab(_tabTokenButton, _sessionTab == SessionTab.Token);
+                HighlightTab(_tabPointsButton, _sessionTab == SessionTab.Points);
+                HighlightTab(_tabMechanicsButton, _sessionTab == SessionTab.Mechanics);
             }
         }
 
-        private void DrawSessionTokenTab()
+        private static void HighlightTab(Button btn, bool active)
         {
-            GUILayout.Label(
-                "Consulta cuánto falta para que venza el token o renueva sin volver a escribir la contraseña.");
-
-            GUILayout.Space(6);
-            GUI.enabled = !_submitting && _sessionRequest == SessionRequestKind.None;
-
-            if (GUILayout.Button(_sessionRequest == SessionRequestKind.Remaining ? "Consultando…" : "Tiempo restante del token"))
+            PdaUi.SetButtonColor(btn, active ? PdaTheme.ButtonActive : PdaTheme.ButtonNormal);
+            var label = PdaUi.ButtonLabel(btn);
+            if (label != null)
             {
-                StartCoroutine(FetchTokenRemainingRoutine());
-            }
-
-            if (GUILayout.Button(_sessionRequest == SessionRequestKind.Refresh ? "Renovando…" : "Renovar token"))
-            {
-                StartCoroutine(RefreshTokenRoutine());
-            }
-
-            GUI.enabled = true;
-
-            if (!string.IsNullOrEmpty(_sessionStatus))
-            {
-                GUILayout.Space(10);
-                GUILayout.Label(_sessionStatus);
+                label.color = active ? PdaTheme.TextPrimary : PdaTheme.TextMuted;
             }
         }
 
-        private void DrawSessionPointsTab()
+        private void SyncUi()
         {
+            if (!_uiBuilt)
+            {
+                return;
+            }
+
+            if (_panel == MenuPanel.Login)
+            {
+                SetEnabled(_loginButton, !_submitting);
+                SetEnabled(_usernameInput, !_submitting);
+                SetEnabled(_passwordInput, !_submitting);
+                SetButtonText(_loginButton, _submitting ? "CONECTANDO…" : "INICIAR SESIÓN EN LIFESYNC");
+                _loginStatusLabel.text = _status ?? string.Empty;
+                return;
+            }
+
+            // Token tab.
+            var busyAny = _submitting || _sessionRequest != SessionRequestKind.None;
+            SetEnabled(_btnRemaining, !busyAny);
+            SetEnabled(_btnRefresh, !busyAny);
+            SetButtonText(_btnRemaining, _sessionRequest == SessionRequestKind.Remaining ? "Consultando…" : "Tiempo restante del token");
+            SetButtonText(_btnRefresh, _sessionRequest == SessionRequestKind.Refresh ? "Renovando…" : "Renovar token");
+            _tokenStatusLabel.text = _sessionStatus ?? string.Empty;
+
+            // Points tab.
             var pid = MyFirstSubnauticaModPlugin.LifeSyncCachedPlayerId.Value;
-            GUILayout.Label(
-                pid > 0
-                    ? $"Jugador en caché: id {pid} (se guardó al iniciar sesión; whoami solo si hace falta)."
-                    : "Aún no hay id de jugador en caché: al actualizar puntos se llamará a whoami una vez.");
-
-            GUILayout.Space(6);
-            GUI.enabled = !_pointsBusy && !_submitting && _sessionRequest == SessionRequestKind.None;
-
-            if (GUILayout.Button(_pointsBusy ? "Actualizando…" : "Cargar puntos por dimensión"))
+            _pointsInfoLabel.text = pid > 0
+                ? $"Jugador en caché: id {pid}."
+                : "Sin id de jugador en caché: se llamará a whoami al cargar puntos.";
+            var pointsBusy = _pointsBusy || busyAny;
+            SetEnabled(_btnLoadPoints, !pointsBusy);
+            SetEnabled(_btnRefreshWhoami, !pointsBusy);
+            SetButtonText(_btnLoadPoints, _pointsBusy ? "Actualizando…" : "Cargar puntos");
+            _pointsStatusLabel.text = _pointsStatus ?? string.Empty;
+            if (!ReferenceEquals(_lastPointsRef, _dimensionEntries))
             {
-                StartCoroutine(FetchDimensionsAndBalanceRoutine());
+                _lastPointsRef = _dimensionEntries;
+                RebuildPointsList();
             }
 
-            if (GUILayout.Button("Refrescar id jugador (whoami)"))
-            {
-                StartCoroutine(CachePlayerIdAfterAuthRoutine(forceRefresh: true));
-            }
-
-            GUI.enabled = true;
-
-            if (!string.IsNullOrEmpty(_pointsStatus))
-            {
-                GUILayout.Space(8);
-                GUILayout.Label(_pointsStatus);
-            }
-
-            if (_dimensionEntries != null && _dimensionEntries.Length > 0)
-            {
-                GUILayout.Space(10);
-                GUILayout.Label("Puntos por dimensión (0 si la dimensión no aparece en /points/balance):", GUI.skin.box);
-
-                var maxVal = 0;
-                foreach (var e in _dimensionEntries)
-                {
-                    maxVal = Mathf.Max(maxVal, e.Balance);
-                }
-
-                // Escala visual: si todo es 0, usa 10 para que las barras no queden ambiguas.
-                var scale = Mathf.Max(maxVal, 10);
-                if (maxVal == 0)
-                {
-                    GUILayout.Label("(Todos los valores en 0; las barras usan escala de referencia 10.)");
-                }
-
-                var totalRowsHeight = Mathf.Min(280f, 56f * _dimensionEntries.Length + 8f);
-                _pointsScroll = GUILayout.BeginScrollView(_pointsScroll, GUILayout.Height(totalRowsHeight));
-                var nameStyle = new GUIStyle(GUI.skin.label) { fontSize = 13 };
-                var numStyle = new GUIStyle(GUI.skin.label) { fontSize = 12 };
-                foreach (var entry in _dimensionEntries)
-                {
-                    GUILayout.BeginVertical(GUI.skin.box);
-                    GUILayout.BeginHorizontal();
-                    GUILayout.Label(entry.Name ?? $"#{entry.IdDimension}", nameStyle, GUILayout.Width(110));
-                    GUILayout.Label(BuildBar01((float)entry.Balance / scale, 26), GUILayout.Width(200));
-                    GUILayout.Label(entry.Balance.ToString(), numStyle, GUILayout.Width(56));
-                    GUILayout.EndHorizontal();
-                    GUILayout.EndVertical();
-                    GUILayout.Space(4);
-                }
-
-                GUILayout.EndScrollView();
-            }
-        }
-
-        private void DrawSessionMechanicsTab()
-        {
+            // Mechanics tab.
             var gameId = MyFirstSubnauticaModPlugin.LifeSyncApiTestVideogameId.Value;
-            GUILayout.Label($"Catálogo de mecánicas del juego id={gameId} (LSG-CORE-API).");
-            GUILayout.Label("Configurable en el .cfg de BepInEx — sección «LifeSync API», clave «Test Videogame Id».");
-
-            GUILayout.Space(6);
-            GUI.enabled = !_mechanicsBusy && !_submitting && _sessionRequest == SessionRequestKind.None;
-            if (GUILayout.Button(_mechanicsBusy ? "Cargando…" : "Cargar mecánicas"))
+            _mechHeaderLabel.text = $"Catálogo de mecánicas del juego id={gameId}.";
+            var mechBusy = _mechanicsBusy || busyAny;
+            SetEnabled(_btnLoadMechanics, !mechBusy);
+            SetButtonText(_btnLoadMechanics, _mechanicsBusy ? "Cargando…" : "Cargar mecánicas");
+            _mechStatusLabel.text = _mechanicsStatus ?? string.Empty;
+            if (!ReferenceEquals(_lastMechRef, _mechanicRows))
             {
-                StartCoroutine(FetchMechanicsRoutine());
+                _lastMechRef = _mechanicRows;
+                RebuildMechanicsList();
             }
 
-            GUI.enabled = true;
-
-            if (!string.IsNullOrEmpty(_mechanicsStatus))
+            if (_lastRedeemingId != _redeemingMechanicVideogameId || _lastMechBusy != mechBusy)
             {
-                GUILayout.Space(6);
-                GUILayout.Label(_mechanicsStatus);
-            }
-
-            if (_mechanicRows != null && _mechanicRows.Length > 0)
-            {
-                GUILayout.Space(8);
-                GUILayout.Label($"Mecánicas disponibles ({_mechanicRows.Length}):", GUI.skin.box);
-
-                var nameStyle = new GUIStyle(GUI.skin.label) { fontSize = 13 };
-                var descStyle = new GUIStyle(GUI.skin.label) { fontSize = 12, wordWrap = true };
-                var hintStyle = new GUIStyle(GUI.skin.label) { fontSize = 11, wordWrap = true };
-
-                _mechanicsScroll = GUILayout.BeginScrollView(_mechanicsScroll, GUILayout.Height(300f));
-                foreach (var row in _mechanicRows)
-                {
-                    GUILayout.BeginVertical(GUI.skin.box);
-                    GUILayout.BeginHorizontal();
-
-                    GUILayout.BeginVertical();
-                    GUILayout.Label(row.modifiable_mechanic_name ?? "—", nameStyle);
-                    GUILayout.Label(row.modifiable_mechanic_description ?? string.Empty, descStyle);
-
-                    var hasRecipe = RedeemCatalog.TryGet(row.id_modifiable_mechanic_videogame, out var recipe);
-                    if (hasRecipe)
-                    {
-                        GUILayout.Label(
-                            $"Costo: {recipe.DescribeCosts()}. Efecto: {recipe.EffectSummary}",
-                            hintStyle);
-                    }
-                    else if (row.id_modifiable_mechanic_videogame > 0)
-                    {
-                        GUILayout.Label(
-                            $"(Sin receta local para mecánica id={row.id_modifiable_mechanic_videogame}; canje no disponible.)",
-                            hintStyle);
-                    }
-
-                    GUILayout.EndVertical();
-
-                    var thisIsRedeeming = _redeemingMechanicVideogameId == row.id_modifiable_mechanic_videogame
-                                          && _redeemingMechanicVideogameId != 0;
-                    GUI.enabled = !_mechanicsBusy
-                                  && !_submitting
-                                  && _sessionRequest == SessionRequestKind.None
-                                  && _redeemingMechanicVideogameId == 0
-                                  && hasRecipe;
-                    if (GUILayout.Button(
-                            thisIsRedeeming ? "Canjeando…" : "Canjear",
-                            GUILayout.Width(90), GUILayout.Height(48)))
-                    {
-                        StartCoroutine(RedeemMechanicRoutine(row));
-                    }
-
-                    GUI.enabled = true;
-                    GUILayout.EndHorizontal();
-                    GUILayout.EndVertical();
-                    GUILayout.Space(4);
-                }
-
-                GUILayout.EndScrollView();
+                _lastRedeemingId = _redeemingMechanicVideogameId;
+                _lastMechBusy = mechBusy;
+                UpdateRedeemButtons(mechBusy);
             }
         }
+
+        private static void SetEnabled(Selectable s, bool enabled)
+        {
+            if (s != null && s.interactable != enabled)
+            {
+                s.interactable = enabled;
+            }
+        }
+
+        private static void SetButtonText(Button btn, string text)
+        {
+            var label = PdaUi.ButtonLabel(btn);
+            if (label != null && label.text != text)
+            {
+                label.text = text;
+            }
+        }
+
+        private void RebuildPointsList()
+        {
+            ClearChildren(_pointsListContent);
+            if (_dimensionEntries == null || _dimensionEntries.Length == 0)
+            {
+                return;
+            }
+
+            var maxVal = 0;
+            foreach (var e in _dimensionEntries)
+            {
+                maxVal = Mathf.Max(maxVal, e.Balance);
+            }
+
+            var scale = Mathf.Max(maxVal, 10);
+
+            foreach (var entry in _dimensionEntries)
+            {
+                var row = PdaUi.CreatePanel("Row", _pointsListContent, PdaTheme.PanelRaised);
+                PdaUi.SetPreferredHeight(row.gameObject, 46f);
+
+                var name = PdaUi.CreateLabel("Name", row.rectTransform, entry.Name ?? $"#{entry.IdDimension}", 15, PdaTheme.TextPrimary, TextAlignmentOptions.Left, false);
+                name.rectTransform.anchorMin = new Vector2(0f, 0f);
+                name.rectTransform.anchorMax = new Vector2(0.34f, 1f);
+                name.rectTransform.offsetMin = new Vector2(12f, 0f);
+                name.rectTransform.offsetMax = new Vector2(0f, 0f);
+
+                var bar = PdaUi.CreateRect("BarHolder", row.rectTransform);
+                bar.anchorMin = new Vector2(0.34f, 0.28f);
+                bar.anchorMax = new Vector2(0.84f, 0.72f);
+                bar.offsetMin = Vector2.zero;
+                bar.offsetMax = Vector2.zero;
+                PdaUi.CreateBar("Bar", bar, (float)entry.Balance / scale, PdaTheme.Accent);
+
+                var val = PdaUi.CreateLabel("Val", row.rectTransform, entry.Balance.ToString(), 15, PdaTheme.AccentOrange, TextAlignmentOptions.Right, false);
+                val.rectTransform.anchorMin = new Vector2(0.84f, 0f);
+                val.rectTransform.anchorMax = new Vector2(1f, 1f);
+                val.rectTransform.offsetMin = new Vector2(0f, 0f);
+                val.rectTransform.offsetMax = new Vector2(-12f, 0f);
+            }
+        }
+
+        private void RebuildMechanicsList()
+        {
+            ClearChildren(_mechListContent);
+            _mechRowRefs.Clear();
+            _lastRedeemingId = -1;
+            if (_mechanicRows == null || _mechanicRows.Length == 0)
+            {
+                return;
+            }
+
+            foreach (var row in _mechanicRows)
+            {
+                var card = PdaUi.CreatePanel("MechCard", _mechListContent, PdaTheme.PanelRaised);
+                PdaUi.SetPreferredHeight(card.gameObject, 104f);
+
+                var name = PdaUi.CreateLabel("Name", card.rectTransform, row.modifiable_mechanic_name ?? "—", 16, PdaTheme.Accent, TextAlignmentOptions.TopLeft, true);
+                name.rectTransform.anchorMin = new Vector2(0f, 1f);
+                name.rectTransform.anchorMax = new Vector2(0.72f, 1f);
+                name.rectTransform.pivot = new Vector2(0.5f, 1f);
+                name.rectTransform.sizeDelta = new Vector2(0f, 24f);
+                name.rectTransform.offsetMin = new Vector2(12f, name.rectTransform.offsetMin.y);
+                name.rectTransform.anchoredPosition = new Vector2(name.rectTransform.anchoredPosition.x, -8f);
+
+                var desc = PdaUi.CreateLabel("Desc", card.rectTransform, row.modifiable_mechanic_description ?? string.Empty, 13, PdaTheme.TextMuted, TextAlignmentOptions.TopLeft, true);
+                desc.rectTransform.anchorMin = new Vector2(0f, 0f);
+                desc.rectTransform.anchorMax = new Vector2(0.72f, 1f);
+                desc.rectTransform.offsetMin = new Vector2(12f, 8f);
+                desc.rectTransform.offsetMax = new Vector2(0f, -34f);
+
+                var hasRecipe = RedeemCatalog.TryGet(row.id_modifiable_mechanic_videogame, out var recipe);
+                var costText = hasRecipe
+                    ? $"Costo: {recipe.DescribeCosts()}"
+                    : (row.id_modifiable_mechanic_videogame > 0 ? "Sin receta local (canje no disponible)" : string.Empty);
+                var cost = PdaUi.CreateLabel("Cost", card.rectTransform, costText, 12, PdaTheme.AccentOrange, TextAlignmentOptions.BottomLeft, true);
+                cost.rectTransform.anchorMin = new Vector2(0f, 0f);
+                cost.rectTransform.anchorMax = new Vector2(0.72f, 0f);
+                cost.rectTransform.pivot = new Vector2(0.5f, 0f);
+                cost.rectTransform.sizeDelta = new Vector2(0f, 20f);
+                cost.rectTransform.offsetMin = new Vector2(12f, 6f);
+
+                var capturedRow = row;
+                var btn = PdaUi.CreateButton("Redeem", card.rectTransform, "CANJEAR", () => StartCoroutine(RedeemMechanicRoutine(capturedRow)), 15);
+                var brt = btn.GetComponent<RectTransform>();
+                brt.anchorMin = new Vector2(0.74f, 0.18f);
+                brt.anchorMax = new Vector2(1f, 0.82f);
+                brt.offsetMin = new Vector2(0f, 0f);
+                brt.offsetMax = new Vector2(-12f, 0f);
+
+                _mechRowRefs.Add(new MechRowRefs
+                {
+                    MechanicVideogameId = row.id_modifiable_mechanic_videogame,
+                    HasRecipe = hasRecipe,
+                    RedeemButton = btn,
+                    RedeemLabel = PdaUi.ButtonLabel(btn),
+                });
+            }
+
+            UpdateRedeemButtons(_mechanicsBusy || _submitting || _sessionRequest != SessionRequestKind.None);
+        }
+
+        private void UpdateRedeemButtons(bool globallyBusy)
+        {
+            foreach (var r in _mechRowRefs)
+            {
+                var redeemingThis = _redeemingMechanicVideogameId == r.MechanicVideogameId && _redeemingMechanicVideogameId != 0;
+                var canRedeem = r.HasRecipe && !globallyBusy && _redeemingMechanicVideogameId == 0;
+                SetEnabled(r.RedeemButton, canRedeem);
+                if (r.RedeemLabel != null)
+                {
+                    r.RedeemLabel.text = redeemingThis ? "Canjeando…" : (r.HasRecipe ? "CANJEAR" : "—");
+                }
+            }
+        }
+
+        private static void ClearChildren(RectTransform parent)
+        {
+            if (parent == null)
+            {
+                return;
+            }
+
+            for (var i = parent.childCount - 1; i >= 0; i--)
+            {
+                Destroy(parent.GetChild(i).gameObject);
+            }
+        }
+
+        // ===================== Lógica de red (igual que antes) =====================
 
         private IEnumerator FetchMechanicsRoutine()
         {
@@ -680,16 +982,7 @@ namespace MyFirstSubnauticaMod.UI
             MyFirstSubnauticaModPlugin.Log.LogInfo(
                 $"[LifeSync][Redeem] OK ({row.modifiable_mechanic_name}); {recipe.Costs.Count} costo(s) descontado(s).");
 
-            // Refresca silenciosamente las dimensiones para que el usuario vea el saldo descontado al cambiar de pestaña.
             yield return StartCoroutine(FetchDimensionsAndBalanceRoutine());
-        }
-
-        private static string BuildBar01(float t01, int widthChars = 18)
-        {
-            t01 = Mathf.Clamp01(t01);
-            var w = Mathf.Clamp(widthChars, 8, 40);
-            var filled = Mathf.RoundToInt(w * t01);
-            return new string('█', filled) + new string('·', w - filled);
         }
 
         /// <summary>
@@ -844,8 +1137,7 @@ namespace MyFirstSubnauticaMod.UI
                 yield break;
             }
 
-            // Diccionario rápido: id_point_dimension → balance.
-            var byDimension = new System.Collections.Generic.Dictionary<int, int>(balances.Length);
+            var byDimension = new Dictionary<int, int>(balances.Length);
             foreach (var b in balances)
             {
                 byDimension[b.id_point_dimension] = b.balance;
@@ -1051,6 +1343,9 @@ namespace MyFirstSubnauticaMod.UI
 
         private IEnumerator LoginRoutine()
         {
+            _username = _usernameInput != null ? _usernameInput.text : _username;
+            _password = _passwordInput != null ? _passwordInput.text : _password;
+
             if (string.IsNullOrWhiteSpace(_username) || string.IsNullOrEmpty(_password))
             {
                 _status = "Introduce usuario y contraseña.";
@@ -1110,10 +1405,15 @@ namespace MyFirstSubnauticaMod.UI
             client.SetBearerToken(token.access_token);
             MyFirstSubnauticaModPlugin.Instance?.Config.Save();
             _password = string.Empty;
+            if (_passwordInput != null)
+            {
+                _passwordInput.text = string.Empty;
+            }
+
             _status = string.Empty;
-            _sessionStatus = "Sesión iniciada. Pestañas Token / Puntos.";
+            _sessionStatus = "Sesión iniciada. Pestañas Token / Puntos / Mecánicas.";
             _panel = MenuPanel.Session;
-            AdjustWindowSizeForPanel();
+            ApplyPanelVisibility();
             MyFirstSubnauticaModPlugin.Log.LogInfo("[LifeSync][Auth] Login correcto; token guardado.");
             StartCoroutine(CachePlayerIdAfterAuthRoutine(forceRefresh: true));
         }

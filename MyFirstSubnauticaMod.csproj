@@ -81,6 +81,15 @@
     <Reference Include="UnityEngine.UI">
       <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Subnautica\Subnautica_Data\Managed\UnityEngine.UI.dll</HintPath>
     </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Subnautica\Subnautica_Data\Managed\UnityEngine.UIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Subnautica\Subnautica_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Subnautica\Subnautica_Data\Managed\Unity.TextMeshPro.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="MonoBehaviours\MyFirstSubnauticaModComponent.cs" />
@@ -91,6 +100,8 @@
     <Compile Include="MyFirstSubnauticaModPlugin.cs" />
     <Compile Include="Input\LifeSyncGameInputPaths.cs" />
     <Compile Include="Input\LifeSyncInputRegistration.cs" />
+    <Compile Include="UI\PdaTheme.cs" />
+    <Compile Include="UI\PdaUi.cs" />
     <Compile Include="UI\LifeSyncLoginMenu.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Services\Models\LifeSyncApiModels.cs" />
