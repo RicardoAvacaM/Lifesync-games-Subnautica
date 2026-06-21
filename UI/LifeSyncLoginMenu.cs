@@ -74,15 +74,8 @@ namespace MyFirstSubnauticaMod.UI
         private Button _btnRefresh;
         private TextMeshProUGUI _tokenStatusLabel;
 
-        private TextMeshProUGUI _pointsInfoLabel;
-        private Button _btnLoadPoints;
-        private Button _btnRefreshWhoami;
-        private TextMeshProUGUI _pointsStatusLabel;
         private RectTransform _pointsListContent;
 
-        private TextMeshProUGUI _mechHeaderLabel;
-        private Button _btnLoadMechanics;
-        private TextMeshProUGUI _mechStatusLabel;
         private RectTransform _mechListContent;
 
         // Para rebuild de listas dinámicas (solo cuando cambian los datos).
@@ -513,36 +506,9 @@ namespace MyFirstSubnauticaMod.UI
             var rt = (RectTransform)_pointsContent.transform;
             PdaUi.Stretch(rt, 0, 0, 0, 0);
 
-            var y = 0f;
-            _pointsInfoLabel = PdaUi.CreateLabel("PointsInfo", rt, string.Empty, 13, PdaTheme.TextMuted, TextAlignmentOptions.TopLeft);
-            PlaceTop(_pointsInfoLabel.rectTransform, ref y, 38f, 8f);
-
-            var buttons = PdaUi.CreateRect("PointsBtns", rt);
-            buttons.anchorMin = new Vector2(0f, 1f);
-            buttons.anchorMax = new Vector2(1f, 1f);
-            buttons.pivot = new Vector2(0.5f, 1f);
-            buttons.sizeDelta = new Vector2(0f, 44f);
-            buttons.anchoredPosition = new Vector2(0f, -y);
-            var bl = buttons.gameObject.AddComponent<HorizontalLayoutGroup>();
-            bl.spacing = 8f;
-            bl.childControlWidth = true;
-            bl.childControlHeight = true;
-            bl.childForceExpandWidth = true;
-            bl.childForceExpandHeight = true;
-            _btnLoadPoints = PdaUi.CreateButton("LoadPoints", buttons, "Cargar puntos", () => StartCoroutine(FetchDimensionsAndBalanceRoutine()), 14);
-            _btnRefreshWhoami = PdaUi.CreateButton("Whoami", buttons, "Refrescar id (whoami)", () => StartCoroutine(CachePlayerIdAfterAuthRoutine(true)), 14);
-            y += 44f + 8f;
-
-            _pointsStatusLabel = PdaUi.CreateLabel("PointsStatus", rt, string.Empty, 13, PdaTheme.AccentOrange, TextAlignmentOptions.TopLeft);
-            PlaceTop(_pointsStatusLabel.rectTransform, ref y, 36f, 6f);
-
             ScrollRect sr;
             _pointsListContent = PdaUi.CreateScroll("PointsScroll", rt, out sr);
-            var srt = (RectTransform)sr.transform;
-            srt.anchorMin = new Vector2(0f, 0f);
-            srt.anchorMax = new Vector2(1f, 1f);
-            srt.offsetMin = new Vector2(0f, 0f);
-            srt.offsetMax = new Vector2(0f, -y);
+            PdaUi.Stretch((RectTransform)sr.transform, 0, 0, 0, 0);
         }
 
         private void BuildMechanicsTab(RectTransform content)
@@ -551,23 +517,9 @@ namespace MyFirstSubnauticaMod.UI
             var rt = (RectTransform)_mechanicsContent.transform;
             PdaUi.Stretch(rt, 0, 0, 0, 0);
 
-            var y = 0f;
-            _mechHeaderLabel = PdaUi.CreateLabel("MechHeader", rt, string.Empty, 13, PdaTheme.TextMuted, TextAlignmentOptions.TopLeft);
-            PlaceTop(_mechHeaderLabel.rectTransform, ref y, 38f, 8f);
-
-            _btnLoadMechanics = PdaUi.CreateButton("LoadMech", rt, "Cargar mecánicas", () => StartCoroutine(FetchMechanicsRoutine()));
-            PlaceTop(_btnLoadMechanics.GetComponent<RectTransform>(), ref y, 44f, 8f);
-
-            _mechStatusLabel = PdaUi.CreateLabel("MechStatus", rt, string.Empty, 13, PdaTheme.AccentOrange, TextAlignmentOptions.TopLeft);
-            PlaceTop(_mechStatusLabel.rectTransform, ref y, 36f, 6f);
-
             ScrollRect sr;
             _mechListContent = PdaUi.CreateScroll("MechScroll", rt, out sr);
-            var srt = (RectTransform)sr.transform;
-            srt.anchorMin = new Vector2(0f, 0f);
-            srt.anchorMax = new Vector2(1f, 1f);
-            srt.offsetMin = new Vector2(0f, 0f);
-            srt.offsetMax = new Vector2(0f, -y);
+            PdaUi.Stretch((RectTransform)sr.transform, 0, 0, 0, 0);
         }
 
         /// <summary>Coloca un rect a lo ancho, anclado arriba, a la altura indicada e incrementa el cursor y.</summary>
@@ -587,6 +539,38 @@ namespace MyFirstSubnauticaMod.UI
         {
             _sessionTab = tab;
             ApplyPanelVisibility();
+            if (tab == SessionTab.Points)
+            {
+                TryAutoLoadPoints();
+            }
+            else if (tab == SessionTab.Mechanics)
+            {
+                TryAutoLoadMechanics();
+            }
+        }
+
+        /// <summary>Al abrir la pestaña Puntos, carga dimensiones/saldos sin botón manual (whoami solo si falta id).</summary>
+        private void TryAutoLoadPoints()
+        {
+            if (!_show || _panel != MenuPanel.Session || _pointsBusy || _submitting ||
+                _sessionRequest != SessionRequestKind.None)
+            {
+                return;
+            }
+
+            StartCoroutine(FetchDimensionsAndBalanceRoutine());
+        }
+
+        /// <summary>Al abrir la pestaña Mecánicas, carga el catálogo automáticamente.</summary>
+        private void TryAutoLoadMechanics()
+        {
+            if (!_show || _panel != MenuPanel.Session || _mechanicsBusy || _submitting ||
+                _sessionRequest != SessionRequestKind.None || _redeemingMechanicVideogameId != 0)
+            {
+                return;
+            }
+
+            StartCoroutine(FetchMechanicsRoutine());
         }
 
         private void ApplyPanelVisibility()
@@ -647,29 +631,15 @@ namespace MyFirstSubnauticaMod.UI
             SetButtonText(_btnRefresh, _sessionRequest == SessionRequestKind.Refresh ? "Renovando…" : "Renovar token");
             _tokenStatusLabel.text = _sessionStatus ?? string.Empty;
 
-            // Points tab.
-            var pid = MyFirstSubnauticaModPlugin.LifeSyncCachedPlayerId.Value;
-            _pointsInfoLabel.text = pid > 0
-                ? $"Jugador en caché: id {pid}."
-                : "Sin id de jugador en caché: se llamará a whoami al cargar puntos.";
-            var pointsBusy = _pointsBusy || busyAny;
-            SetEnabled(_btnLoadPoints, !pointsBusy);
-            SetEnabled(_btnRefreshWhoami, !pointsBusy);
-            SetButtonText(_btnLoadPoints, _pointsBusy ? "Actualizando…" : "Cargar puntos");
-            _pointsStatusLabel.text = _pointsStatus ?? string.Empty;
+            // Points tab (carga automática; solo lista, sin mensajes de estado en UI).
             if (!ReferenceEquals(_lastPointsRef, _dimensionEntries))
             {
                 _lastPointsRef = _dimensionEntries;
                 RebuildPointsList();
             }
 
-            // Mechanics tab.
-            var gameId = MyFirstSubnauticaModPlugin.LifeSyncApiTestVideogameId.Value;
-            _mechHeaderLabel.text = $"Catálogo de mecánicas del juego id={gameId}.";
+            // Mechanics tab (carga automática; solo lista de tarjetas).
             var mechBusy = _mechanicsBusy || busyAny;
-            SetEnabled(_btnLoadMechanics, !mechBusy);
-            SetButtonText(_btnLoadMechanics, _mechanicsBusy ? "Cargando…" : "Cargar mecánicas");
-            _mechStatusLabel.text = _mechanicsStatus ?? string.Empty;
             if (!ReferenceEquals(_lastMechRef, _mechanicRows))
             {
                 _lastMechRef = _mechanicRows;
@@ -878,9 +848,7 @@ namespace MyFirstSubnauticaMod.UI
             }
 
             _mechanicRows = rows;
-            _mechanicsStatus = rows.Length == 0
-                ? "El catálogo no tiene mecánicas para este videojuego."
-                : $"Actualizado: {rows.Length} mecánica(s).";
+            _mechanicsStatus = string.Empty;
             MyFirstSubnauticaModPlugin.Log.LogInfo(
                 $"[LifeSync][API] videogames/{gameId}/mechanics OK ({rows.Length} filas).");
         }
@@ -1156,7 +1124,7 @@ namespace MyFirstSubnauticaMod.UI
             }
 
             _dimensionEntries = merged;
-            _pointsStatus = $"Actualizado: {merged.Length} dimensión(es); {balances.Length} con saldo en API.";
+            _pointsStatus = string.Empty;
             MyFirstSubnauticaModPlugin.Log.LogInfo(
                 $"[LifeSync][API] Dimensiones merged OK (attrs={attrs.Length}, balances={balances.Length}).");
         }
