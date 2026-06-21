@@ -35,6 +35,7 @@ namespace MyFirstSubnauticaMod.UI
         private bool _submitting;
         private SessionRequestKind _sessionRequest;
         private DimensionPointEntry[] _dimensionEntries;
+        private Dictionary<int, string> _dimensionNameById;
         private string _pointsStatus = string.Empty;
         private bool _pointsBusy;
         private ModifiableMechanicRow[] _mechanicRows;
@@ -154,6 +155,7 @@ namespace MyFirstSubnauticaMod.UI
                 _mechanicsStatus = string.Empty;
                 _sessionTab = SessionTab.Token;
                 _dimensionEntries = null;
+                _dimensionNameById = null;
                 _mechanicRows = null;
 
                 var bearer = MyFirstSubnauticaModPlugin.LifeSyncApiBearerToken.Value;
@@ -263,6 +265,7 @@ namespace MyFirstSubnauticaMod.UI
             _mechanicRows = null;
             _mechanicsStatus = string.Empty;
             _dimensionEntries = null;
+            _dimensionNameById = null;
             _sessionTab = SessionTab.Token;
             _status = "Sesión cerrada. Introduce usuario y contraseña para volver a entrar.";
             _panel = MenuPanel.Login;
@@ -570,7 +573,18 @@ namespace MyFirstSubnauticaMod.UI
                 return;
             }
 
-            StartCoroutine(FetchMechanicsRoutine());
+            StartCoroutine(LoadMechanicsTabRoutine());
+        }
+
+        /// <summary>Asegura nombres de dimensión (/attributes) y luego carga mecánicas.</summary>
+        private IEnumerator LoadMechanicsTabRoutine()
+        {
+            if (_dimensionNameById == null || _dimensionNameById.Count == 0)
+            {
+                yield return StartCoroutine(FetchAttributeNamesRoutine());
+            }
+
+            yield return StartCoroutine(FetchMechanicsRoutine());
         }
 
         private void ApplyPanelVisibility()
@@ -744,7 +758,7 @@ namespace MyFirstSubnauticaMod.UI
 
                 var hasRecipe = RedeemCatalog.TryGet(row.id_modifiable_mechanic_videogame, out var recipe);
                 var costText = hasRecipe
-                    ? $"Costo: {recipe.DescribeCosts()}"
+                    ? $"Costo: {recipe.DescribeCosts(_dimensionNameById)}"
                     : (row.id_modifiable_mechanic_videogame > 0 ? "Sin receta local (canje no disponible)" : string.Empty);
                 var cost = PdaUi.CreateLabel("Cost", card.rectTransform, costText, 12, PdaTheme.AccentOrange, TextAlignmentOptions.BottomLeft, true);
                 cost.rectTransform.anchorMin = new Vector2(0f, 0f);
@@ -909,7 +923,7 @@ namespace MyFirstSubnauticaMod.UI
                 var cost = recipe.Costs[i];
                 var body = RedeemCatalog.BuildRedeemBodyJson(row.id_modifiable_mechanic_videogame, cost);
                 _mechanicsStatus =
-                    $"Canjeando «{row.modifiable_mechanic_name}» — paso {i + 1}/{recipe.Costs.Count}: {cost.Amount} pts (dim {cost.PointDimensionId})…";
+                    $"Canjeando «{row.modifiable_mechanic_name}» — paso {i + 1}/{recipe.Costs.Count}: {cost.Amount} pts dimensión: {RedeemRecipe.FormatDimensionLabel(cost.PointDimensionId, _dimensionNameById)}…";
                 MyFirstSubnauticaModPlugin.Log.LogInfo($"[LifeSync][Redeem] POST redeem body={body}");
 
                 var task = client.PostRedeemAsync(gameId, playerId, body);
@@ -1028,6 +1042,72 @@ namespace MyFirstSubnauticaMod.UI
         /// Carga el catálogo /attributes y el saldo /players/{id}/points/balance, los junta por
         /// <c>id_attributes == id_point_dimension</c> y rellena las dimensiones sin saldo con <c>0</c>.
         /// </summary>
+        private IEnumerator FetchAttributeNamesRoutine()
+        {
+            if (_dimensionNameById != null && _dimensionNameById.Count > 0)
+            {
+                yield break;
+            }
+
+            var client = MyFirstSubnauticaModPlugin.ResolveApiClient();
+            if (client == null)
+            {
+                yield break;
+            }
+
+            SyncBearerOnClient(client);
+            if (string.IsNullOrWhiteSpace(MyFirstSubnauticaModPlugin.LifeSyncApiBearerToken.Value))
+            {
+                yield break;
+            }
+
+            var task = client.GetAttributesAsync();
+            while (!task.IsCompleted)
+            {
+                yield return null;
+            }
+
+            if (!task.Result.Success ||
+                !LifeSyncPointsJsonParsers.TryParseAttributesArray(task.Result.ResponseBody, out var attrs))
+            {
+                yield break;
+            }
+
+            UpdateDimensionNameCache(attrs);
+        }
+
+        private void UpdateDimensionNameCache(AttributeRow[] attrs)
+        {
+            if (attrs == null || attrs.Length == 0)
+            {
+                return;
+            }
+
+            if (_dimensionNameById == null)
+            {
+                _dimensionNameById = new Dictionary<int, string>(attrs.Length);
+            }
+            else
+            {
+                _dimensionNameById.Clear();
+            }
+
+            foreach (var a in attrs)
+            {
+                _dimensionNameById[a.id_attributes] = a.name;
+            }
+
+            // Si las mecánicas ya están en pantalla, refrescar etiquetas de costo con nombres.
+            if (_mechanicRows != null && _mechanicRows.Length > 0)
+            {
+                _lastMechRef = null;
+            }
+        }
+
+        /// <summary>
+        /// Carga el catálogo /attributes y el saldo /players/{id}/points/balance, los junta por
+        /// <c>id_attributes == id_point_dimension</c> y rellena las dimensiones sin saldo con <c>0</c>.
+        /// </summary>
         private IEnumerator FetchDimensionsAndBalanceRoutine()
         {
             _pointsBusy = true;
@@ -1078,9 +1158,12 @@ namespace MyFirstSubnauticaMod.UI
             {
                 _pointsStatus = "No se pudo parsear /attributes (formato inesperado).";
                 _dimensionEntries = null;
+                _dimensionNameById = null;
                 _pointsBusy = false;
                 yield break;
             }
+
+            UpdateDimensionNameCache(attrs);
 
             _pointsStatus = $"Cargando saldos del jugador {playerId}…";
             var balTask = client.GetPlayerPointsBalanceAsync(playerId);

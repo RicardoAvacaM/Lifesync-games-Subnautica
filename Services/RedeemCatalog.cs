@@ -31,8 +31,8 @@ namespace MyFirstSubnauticaMod.Services
         public string EffectSummary;
         public Action ApplyLocalEffect;
 
-        /// <summary>Resumen legible de los costos, p. ej. «30 pts (dim 2) + 20 pts (dim 4)».</summary>
-        public string DescribeCosts()
+        /// <summary>Resumen legible de los costos, p. ej. «30 pts dimensión: Fisico + 20 pts dimensión: Mental».</summary>
+        public string DescribeCosts(IReadOnlyDictionary<int, string> dimensionNames = null)
         {
             if (Costs == null || Costs.Count == 0)
             {
@@ -47,10 +47,22 @@ namespace MyFirstSubnauticaMod.Services
                     sb.Append(" + ");
                 }
 
-                sb.Append($"{Costs[i].Amount} pts (dim {Costs[i].PointDimensionId})");
+                sb.Append($"{Costs[i].Amount} pts dimensión: {FormatDimensionLabel(Costs[i].PointDimensionId, dimensionNames)}");
             }
 
             return sb.ToString();
+        }
+
+        internal static string FormatDimensionLabel(int pointDimensionId, IReadOnlyDictionary<int, string> dimensionNames)
+        {
+            if (dimensionNames != null &&
+                dimensionNames.TryGetValue(pointDimensionId, out var name) &&
+                !string.IsNullOrEmpty(name))
+            {
+                return name;
+            }
+
+            return $"dim {pointDimensionId}";
         }
     }
 
