@@ -11,24 +11,21 @@ using UnityEngine;
 namespace MyFirstSubnauticaMod.Services
 {
     /// <summary>
-    /// Acumula eventos de sesión LifeSync en memoria, muestrea stats cada 30 s en partida,
-    /// y sube POST /game-logs/sessions al cerrar sesión (logout) o al cerrar el juego.
-    /// Si falla el POST, escribe CSV local (mismo formato legacy).
+    /// Acumula eventos de sesión LifeSync en memoria y sube POST /game-logs/sessions al cerrar sesión
+    /// (logout) o al cerrar el juego. Incluye una foto de progreso (vida/oxígeno máx., canjes acumulados).
+    /// Si falla el POST, escribe CSV local con el snapshot de progreso.
     /// </summary>
     internal sealed class GameSessionLogService : MonoBehaviour
     {
-        private const float SampleIntervalSeconds = 30f;
-
         internal static GameSessionLogService Instance { get; private set; }
 
         private bool _sessionActive;
         private bool _uploadCompleted;
         private string _sessionStartUtc;
         private readonly List<SessionLogEvent> _events = new List<SessionLogEvent>();
-        private readonly List<PlayerStatsSnapshot> _statsSamples = new List<PlayerStatsSnapshot>();
+        private SessionProgressSnapshot _lastProgressSnapshot;
         private int _totalPointsSpent;
         private int _redemptionsCount;
-        private Coroutine _sampleRoutine;
 
         internal static void EnsureOnHost(GameObject host)
         {
@@ -120,18 +117,11 @@ namespace MyFirstSubnauticaMod.Services
             _uploadCompleted = false;
             _sessionStartUtc = FormatUtcNow();
             _events.Clear();
-            _statsSamples.Clear();
+            _lastProgressSnapshot = default;
             _totalPointsSpent = 0;
             _redemptionsCount = 0;
 
             AddEvent("session_start", "{}");
-
-            if (_sampleRoutine != null)
-            {
-                StopCoroutine(_sampleRoutine);
-            }
-
-            _sampleRoutine = StartCoroutine(SampleRoutine());
             MyFirstSubnauticaModPlugin.Log.LogInfo($"[LifeSync][Logger] Sesión iniciada ({_sessionStartUtc}).");
         }
 
@@ -155,34 +145,10 @@ namespace MyFirstSubnauticaMod.Services
             AddEvent("mechanic_redeemed", data);
         }
 
-        private IEnumerator SampleRoutine()
+        private void CaptureSessionSnapshot()
         {
-            yield return null;
-            TryCaptureStatsSample();
-
-            var wait = new WaitForSecondsRealtime(SampleIntervalSeconds);
-            while (_sessionActive)
-            {
-                yield return wait;
-                TryCaptureStatsSample();
-            }
-        }
-
-        private void TryCaptureStatsSample()
-        {
-            if (!_sessionActive || !HasBearerToken())
-            {
-                return;
-            }
-
-            var player = Player.main;
-            if (player == null || !PlayerStatsSnapshot.TryCapture(player, out var snapshot))
-            {
-                return;
-            }
-
-            _statsSamples.Add(snapshot);
-            AddEvent("stats_sample", snapshot.ToJsonDataObject());
+            _lastProgressSnapshot = SessionProgressSnapshot.Build(_redemptionsCount, _totalPointsSpent);
+            AddEvent("session_snapshot", _lastProgressSnapshot.ToJsonDataObject());
         }
 
         private void AddEvent(string type, string dataJson)
@@ -203,31 +169,14 @@ namespace MyFirstSubnauticaMod.Services
             }
 
             _sessionActive = false;
-            if (_sampleRoutine != null)
-            {
-                StopCoroutine(_sampleRoutine);
-                _sampleRoutine = null;
-            }
-
+            CaptureSessionSnapshot();
             AddEvent("session_end", "{}");
 
+            var uploaded = false;
             var sessionEndUtc = FormatUtcNow();
             var playerId = MyFirstSubnauticaModPlugin.LifeSyncCachedPlayerId.Value;
-            var videogameId = MyFirstSubnauticaModPlugin.LifeSyncApiTestVideogameId.Value;
-            var modVersion = MyFirstSubnauticaModPlugin.ModVersion;
+            var payload = BuildPayloadJson();
 
-            var payload = GameSessionLogPayloadBuilder.BuildRequestJson(
-                playerId,
-                videogameId,
-                _sessionStartUtc,
-                sessionEndUtc,
-                modVersion,
-                _totalPointsSpent,
-                _redemptionsCount,
-                _events,
-                _statsSamples.Count);
-
-            var uploaded = false;
             var client = MyFirstSubnauticaModPlugin.ResolveApiClient();
             if (client != null && HasBearerToken() && playerId > 0)
             {
@@ -241,7 +190,9 @@ namespace MyFirstSubnauticaMod.Services
                 {
                     uploaded = true;
                     MyFirstSubnauticaModPlugin.Log.LogInfo(
-                        $"[LifeSync][Logger] Sesión subida OK (HTTP {task.Result.StatusCode}, muestras={_statsSamples.Count}).");
+                        $"[LifeSync][Logger] Sesión subida OK (HTTP {task.Result.StatusCode}, fin={sessionEndUtc}, " +
+                        $"health_max={_lastProgressSnapshot.HealthMax:0.##}, oxygen_max={_lastProgressSnapshot.OxygenMax:0.##}, " +
+                        $"canjes_mejoras={_lastProgressSnapshot.RedemptionsUpgradesTotal}).");
                 }
                 else
                 {
@@ -273,7 +224,7 @@ namespace MyFirstSubnauticaMod.Services
 
             _uploadCompleted = true;
             _events.Clear();
-            _statsSamples.Clear();
+            _lastProgressSnapshot = default;
         }
 
         private void OnApplicationQuitting()
@@ -284,32 +235,14 @@ namespace MyFirstSubnauticaMod.Services
             }
 
             _sessionActive = false;
-            if (_sampleRoutine != null)
-            {
-                StopCoroutine(_sampleRoutine);
-                _sampleRoutine = null;
-            }
-
+            CaptureSessionSnapshot();
             AddEvent("session_end", "{}");
 
             var sessionEndUtc = FormatUtcNow();
-            var playerId = MyFirstSubnauticaModPlugin.LifeSyncCachedPlayerId.Value;
-            var videogameId = MyFirstSubnauticaModPlugin.LifeSyncApiTestVideogameId.Value;
-            var modVersion = MyFirstSubnauticaModPlugin.ModVersion;
-
-            var payload = GameSessionLogPayloadBuilder.BuildRequestJson(
-                playerId,
-                videogameId,
-                _sessionStartUtc,
-                sessionEndUtc,
-                modVersion,
-                _totalPointsSpent,
-                _redemptionsCount,
-                _events,
-                _statsSamples.Count);
-
+            var payload = BuildPayloadJson();
             var uploaded = false;
-            if (HasBearerToken() && playerId > 0)
+
+            if (HasBearerToken() && MyFirstSubnauticaModPlugin.LifeSyncCachedPlayerId.Value > 0)
             {
                 uploaded = TryBlockingUpload(payload);
             }
@@ -321,10 +254,26 @@ namespace MyFirstSubnauticaMod.Services
             else
             {
                 MyFirstSubnauticaModPlugin.Log.LogInfo(
-                    $"[LifeSync][Logger] Sesión subida al cerrar juego (muestras={_statsSamples.Count}).");
+                    $"[LifeSync][Logger] Sesión subida al cerrar juego " +
+                    $"(health_max={_lastProgressSnapshot.HealthMax:0.##}, oxygen_max={_lastProgressSnapshot.OxygenMax:0.##}, " +
+                    $"canjes_mejoras={_lastProgressSnapshot.RedemptionsUpgradesTotal}).");
             }
 
             _uploadCompleted = true;
+        }
+
+        private string BuildPayloadJson()
+        {
+            return GameSessionLogPayloadBuilder.BuildRequestJson(
+                MyFirstSubnauticaModPlugin.LifeSyncCachedPlayerId.Value,
+                MyFirstSubnauticaModPlugin.LifeSyncApiTestVideogameId.Value,
+                _sessionStartUtc,
+                FormatUtcNow(),
+                MyFirstSubnauticaModPlugin.ModVersion,
+                _totalPointsSpent,
+                _redemptionsCount,
+                _events,
+                _lastProgressSnapshot);
         }
 
         private static bool TryBlockingUpload(string payloadJson)
@@ -388,18 +337,15 @@ namespace MyFirstSubnauticaMod.Services
                 Directory.CreateDirectory(loggerDir);
 
                 var stamp = DateTime.UtcNow.ToString("yyyy-MM-dd_HHmmss", CultureInfo.InvariantCulture);
-                var path = Path.Combine(loggerDir, $"stats_{stamp}.csv");
+                var path = Path.Combine(loggerDir, $"session_progress_{stamp}.csv");
 
                 var sb = new StringBuilder();
-                sb.AppendLine(string.Join(",", PlayerStatsSnapshot.CsvHeader));
-                foreach (var sample in _statsSamples)
-                {
-                    sb.AppendLine(sample.ToCsvRow());
-                }
+                sb.AppendLine(string.Join(",", SessionProgressSnapshot.CsvHeader));
+                sb.AppendLine(_lastProgressSnapshot.ToCsvRow());
 
                 File.WriteAllText(path, sb.ToString(), Encoding.UTF8);
                 MyFirstSubnauticaModPlugin.Log.LogInfo(
-                    $"[LifeSync][Logger] Respaldo CSV local: {path} (muestras={_statsSamples.Count}, fin={sessionEndUtc}).");
+                    $"[LifeSync][Logger] Respaldo CSV local: {path} (fin={sessionEndUtc}).");
             }
             catch (Exception ex)
             {

@@ -109,6 +109,7 @@
     <Compile Include="Services\LifeSyncApiClient.cs" />
     <Compile Include="Services\RedeemCatalog.cs" />
     <Compile Include="Services\PlayerStatsApplier.cs" />
+    <Compile Include="Services\SessionProgressSnapshot.cs" />
     <Compile Include="Services\PlayerStatsSnapshot.cs" />
     <Compile Include="Services\GameSessionLogPayloadBuilder.cs" />
     <Compile Include="Services\GameSessionLogService.cs" />
