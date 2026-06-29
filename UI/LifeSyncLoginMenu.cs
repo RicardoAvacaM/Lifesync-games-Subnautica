@@ -76,11 +76,13 @@ namespace MyFirstSubnauticaMod.UI
         private TextMeshProUGUI _tokenStatusLabel;
 
         private RectTransform _pointsListContent;
+        private TextMeshProUGUI _pointsStatusLabel;
 
         private RectTransform _mechListContent;
 
         // Para rebuild de listas dinámicas (solo cuando cambian los datos).
         private DimensionPointEntry[] _lastPointsRef;
+        private string _lastPointsStatus = string.Empty;
         private ModifiableMechanicRow[] _lastMechRef;
         private int _lastRedeemingId = -1;
         private bool _lastMechBusy;
@@ -249,6 +251,13 @@ namespace MyFirstSubnauticaMod.UI
         /// <summary>Borra token en cfg y cliente; muestra de nuevo el login dentro del menú abierto.</summary>
         private void LogOutAndShowLogin()
         {
+            StartCoroutine(LogOutAndShowLoginRoutine());
+        }
+
+        private IEnumerator LogOutAndShowLoginRoutine()
+        {
+            yield return GameSessionLogService.EndSessionUploadRoutine();
+
             MyFirstSubnauticaModPlugin.LifeSyncApiBearerToken.Value = string.Empty;
             MyFirstSubnauticaModPlugin.LifeSyncCachedPlayerId.Value = 0;
             var client = MyFirstSubnauticaModPlugin.ResolveApiClient();
@@ -509,8 +518,30 @@ namespace MyFirstSubnauticaMod.UI
             var rt = (RectTransform)_pointsContent.transform;
             PdaUi.Stretch(rt, 0, 0, 0, 0);
 
+            var statusRect = PdaUi.CreateRect("PointsStatus", rt);
+            statusRect.anchorMin = new Vector2(0f, 0f);
+            statusRect.anchorMax = new Vector2(1f, 0f);
+            statusRect.pivot = new Vector2(0.5f, 0f);
+            statusRect.sizeDelta = new Vector2(0f, 28f);
+            statusRect.offsetMin = new Vector2(12f, 8f);
+            statusRect.offsetMax = new Vector2(-12f, 8f);
+            _pointsStatusLabel = PdaUi.CreateLabel(
+                "PointsStatusLabel",
+                statusRect,
+                string.Empty,
+                13,
+                PdaTheme.TextMuted,
+                TextAlignmentOptions.Center,
+                true);
+            PdaUi.Stretch(_pointsStatusLabel.rectTransform, 0, 0, 0, 0);
+
             ScrollRect sr;
-            _pointsListContent = PdaUi.CreateScroll("PointsScroll", rt, out sr);
+            var scrollRect = PdaUi.CreateRect("PointsScrollHolder", rt);
+            scrollRect.anchorMin = new Vector2(0f, 0f);
+            scrollRect.anchorMax = new Vector2(1f, 1f);
+            scrollRect.offsetMin = new Vector2(0f, 40f);
+            scrollRect.offsetMax = new Vector2(0f, 0f);
+            _pointsListContent = PdaUi.CreateScroll("PointsScroll", scrollRect, out sr);
             PdaUi.Stretch((RectTransform)sr.transform, 0, 0, 0, 0);
         }
 
@@ -645,8 +676,18 @@ namespace MyFirstSubnauticaMod.UI
             SetButtonText(_btnRefresh, _sessionRequest == SessionRequestKind.Refresh ? "Renovando…" : "Renovar token");
             _tokenStatusLabel.text = _sessionStatus ?? string.Empty;
 
-            // Points tab (carga automática; solo lista, sin mensajes de estado en UI).
-            if (!ReferenceEquals(_lastPointsRef, _dimensionEntries))
+            // Points tab (carga automática; mensaje de estado si falla o está cargando).
+            if (_pointsStatusLabel != null && _pointsStatusLabel.text != (_pointsStatus ?? string.Empty))
+            {
+                _pointsStatusLabel.text = _pointsStatus ?? string.Empty;
+            }
+
+            if (_lastPointsStatus != (_pointsStatus ?? string.Empty))
+            {
+                _lastPointsStatus = _pointsStatus ?? string.Empty;
+                RebuildPointsList();
+            }
+            else if (!ReferenceEquals(_lastPointsRef, _dimensionEntries))
             {
                 _lastPointsRef = _dimensionEntries;
                 RebuildPointsList();
@@ -690,8 +731,23 @@ namespace MyFirstSubnauticaMod.UI
             ClearChildren(_pointsListContent);
             if (_dimensionEntries == null || _dimensionEntries.Length == 0)
             {
+                if (!string.IsNullOrEmpty(_pointsStatus))
+                {
+                    var msg = PdaUi.CreateLabel(
+                        "PointsMessage",
+                        _pointsListContent,
+                        _pointsStatus,
+                        14,
+                        PdaTheme.TextMuted,
+                        TextAlignmentOptions.Center,
+                        true);
+                    PdaUi.SetPreferredHeight(msg.gameObject, 48f);
+                }
+
                 return;
             }
+
+            _lastPointsRef = _dimensionEntries;
 
             var maxVal = 0;
             foreach (var e in _dimensionEntries)
@@ -964,6 +1020,14 @@ namespace MyFirstSubnauticaMod.UI
             MyFirstSubnauticaModPlugin.Log.LogInfo(
                 $"[LifeSync][Redeem] OK ({row.modifiable_mechanic_name}); {recipe.Costs.Count} costo(s) descontado(s).");
 
+            var totalCost = 0;
+            foreach (var cost in recipe.Costs)
+            {
+                totalCost += cost.Amount;
+            }
+
+            GameSessionLogService.RecordRedemption(row.modifiable_mechanic_name, totalCost, recipe.Costs.Count);
+
             yield return StartCoroutine(FetchDimensionsAndBalanceRoutine());
         }
 
@@ -1035,6 +1099,7 @@ namespace MyFirstSubnauticaMod.UI
             if (forceRefresh)
             {
                 _pointsStatus = $"Id de jugador guardado: {pid}.";
+                GameSessionLogService.StartSession();
             }
         }
 
@@ -1160,6 +1225,9 @@ namespace MyFirstSubnauticaMod.UI
                 _dimensionEntries = null;
                 _dimensionNameById = null;
                 _pointsBusy = false;
+                MyFirstSubnauticaModPlugin.Log.LogWarning(
+                    "[LifeSync][API] No se pudo parsear /attributes. Respuesta: " +
+                    TruncateForLog(attrTask.Result.ResponseBody));
                 yield break;
             }
 
@@ -1185,31 +1253,27 @@ namespace MyFirstSubnauticaMod.UI
             {
                 _pointsStatus = "No se pudo parsear /points/balance (formato inesperado).";
                 _dimensionEntries = null;
+                MyFirstSubnauticaModPlugin.Log.LogWarning(
+                    "[LifeSync][API] No se pudo parsear /points/balance. Respuesta: " +
+                    TruncateForLog(balTask.Result.ResponseBody));
                 yield break;
             }
 
-            var byDimension = new Dictionary<int, int>(balances.Length);
-            foreach (var b in balances)
-            {
-                byDimension[b.id_point_dimension] = b.balance;
-            }
-
-            var merged = new DimensionPointEntry[attrs.Length];
-            for (var i = 0; i < attrs.Length; i++)
-            {
-                var a = attrs[i];
-                merged[i] = new DimensionPointEntry
-                {
-                    IdDimension = a.id_attributes,
-                    Name = a.name,
-                    Balance = byDimension.TryGetValue(a.id_attributes, out var bal) ? bal : 0,
-                };
-            }
-
-            _dimensionEntries = merged;
+            _dimensionEntries = LifeSyncPointsJsonParsers.MergeAttributesWithBalances(attrs, balances);
             _pointsStatus = string.Empty;
             MyFirstSubnauticaModPlugin.Log.LogInfo(
-                $"[LifeSync][API] Dimensiones merged OK (attrs={attrs.Length}, balances={balances.Length}).");
+                $"[LifeSync][API] Dimensiones merged OK (attrs={attrs.Length}, balances={balances.Length}, filas={_dimensionEntries.Length}).");
+        }
+
+        private static string TruncateForLog(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+            {
+                return "(vacío)";
+            }
+
+            const int max = 400;
+            return text.Length <= max ? text : text.Substring(0, max) + "…";
         }
 
         private static void SyncBearerOnClient(LifeSyncApiClient client)

@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using UnityEngine;
 
@@ -79,7 +81,12 @@ namespace MyFirstSubnauticaMod.Services.Models
     {
         public int id_players;
         public int id_point_dimension;
+        public int id_attributes;
         public int balance;
+        public string dimension_code;
+        public string dimension_name;
+        public string attribute_name;
+        public string subattribute_name;
     }
 
     /// <summary>Fila de GET /videogames/{id}/mechanics. <c>id_modifiable_mechanic_videogame</c> es el id que va en el body del canje.</summary>
@@ -224,6 +231,86 @@ namespace MyFirstSubnauticaMod.Services.Models
         }
 
         /// <summary>
+        /// Combina catálogo /attributes con saldos /points/balance para la pestaña Puntos.
+        /// </summary>
+        internal static DimensionPointEntry[] MergeAttributesWithBalances(
+            AttributeRow[] attrs,
+            PlayerPointsBalanceRow[] balances)
+        {
+            attrs = attrs ?? new AttributeRow[0];
+            balances = balances ?? new PlayerPointsBalanceRow[0];
+
+            var byId = new Dictionary<int, DimensionPointEntry>();
+            foreach (var a in attrs)
+            {
+                if (a == null || a.id_attributes <= 0)
+                {
+                    continue;
+                }
+
+                byId[a.id_attributes] = new DimensionPointEntry
+                {
+                    IdDimension = a.id_attributes,
+                    Name = a.name ?? $"#{a.id_attributes}",
+                    Balance = 0
+                };
+            }
+
+            foreach (var b in balances)
+            {
+                if (b == null)
+                {
+                    continue;
+                }
+
+                var mergeKey = b.id_attributes > 0 ? b.id_attributes : b.id_point_dimension;
+                if (mergeKey <= 0)
+                {
+                    continue;
+                }
+
+                var displayName = FirstNonEmpty(
+                    b.attribute_name,
+                    b.dimension_name,
+                    b.subattribute_name,
+                    byId.TryGetValue(mergeKey, out var existing) ? existing.Name : null,
+                    $"#{mergeKey}");
+
+                if (byId.TryGetValue(mergeKey, out var entry))
+                {
+                    entry.Balance = b.balance;
+                    if (!string.IsNullOrEmpty(displayName))
+                    {
+                        entry.Name = displayName;
+                    }
+                }
+                else
+                {
+                    byId[mergeKey] = new DimensionPointEntry
+                    {
+                        IdDimension = mergeKey,
+                        Name = displayName,
+                        Balance = b.balance
+                    };
+                }
+            }
+
+            if (byId.Count == 0)
+            {
+                return new DimensionPointEntry[0];
+            }
+
+            var merged = new DimensionPointEntry[byId.Count];
+            var i = 0;
+            foreach (var pair in byId)
+            {
+                merged[i++] = pair.Value;
+            }
+
+            return merged;
+        }
+
+        /// <summary>
         /// Parsea GET /attributes (array con id_attributes + name). Regex porque <see cref="JsonUtility"/>
         /// no resuelve bien arrays de objetos anidados.
         /// </summary>
@@ -235,33 +322,33 @@ namespace MyFirstSubnauticaMod.Services.Models
                 return false;
             }
 
-            var s = json.Trim().TrimStart('\uFEFF', '\ufeff');
+            var s = ExtractJsonArray(json);
+            if (s == null)
+            {
+                return false;
+            }
+
             if (s == "[]")
             {
                 rows = new AttributeRow[0];
                 return true;
             }
 
-            if (!s.StartsWith("["))
+            var list = new List<AttributeRow>();
+            foreach (var block in EnumerateJsonObjectBlocks(s))
             {
-                return false;
+                if (!TryGetJsonIntField(block, "id_attributes", out var idAttributes) || idAttributes <= 0)
+                {
+                    continue;
+                }
+
+                var name = TryGetJsonStringField(block, "name");
+                list.Add(new AttributeRow { id_attributes = idAttributes, name = name ?? string.Empty });
             }
 
-            var rx = new Regex(
-                "\"id_attributes\"\\s*:\\s*(\\d+)\\s*,\\s*\"name\"\\s*:\\s*\"([^\"]*)\"",
-                RegexOptions.CultureInvariant);
-            var matches = rx.Matches(s);
-            if (matches.Count == 0)
+            if (list.Count == 0)
             {
                 return false;
-            }
-
-            var list = new List<AttributeRow>(matches.Count);
-            foreach (Match m in matches)
-            {
-                var row = new AttributeRow { name = m.Groups[2].Value };
-                int.TryParse(m.Groups[1].Value, out row.id_attributes);
-                list.Add(row);
             }
 
             rows = list.ToArray();
@@ -348,7 +435,7 @@ namespace MyFirstSubnauticaMod.Services.Models
             return true;
         }
 
-        /// <summary>Parsea GET /players/{id}/points/balance (id_point_dimension + balance).</summary>
+        /// <summary>Parsea GET /players/{id}/points/balance (campos en cualquier orden).</summary>
         internal static bool TryParsePlayerPointsBalanceArray(string json, out PlayerPointsBalanceRow[] rows)
         {
             rows = null;
@@ -357,38 +444,164 @@ namespace MyFirstSubnauticaMod.Services.Models
                 return false;
             }
 
-            var s = json.Trim().TrimStart('\uFEFF', '\ufeff');
+            var s = ExtractJsonArray(json);
+            if (s == null)
+            {
+                return false;
+            }
+
             if (s == "[]")
             {
                 rows = new PlayerPointsBalanceRow[0];
                 return true;
             }
 
-            if (!s.StartsWith("["))
+            var list = new List<PlayerPointsBalanceRow>();
+            foreach (var block in EnumerateJsonObjectBlocks(s))
             {
-                return false;
-            }
+                if (!TryGetJsonIntField(block, "id_point_dimension", out var idPointDimension))
+                {
+                    continue;
+                }
 
-            var rx = new Regex(
-                "\"id_point_dimension\"\\s*:\\s*(\\d+)\\s*,\\s*\"balance\"\\s*:\\s*(-?\\d+)",
-                RegexOptions.CultureInvariant);
-            var matches = rx.Matches(s);
-            if (matches.Count == 0)
-            {
-                return false;
-            }
+                if (!TryGetJsonNumberField(block, "balance", out var balance))
+                {
+                    continue;
+                }
 
-            var list = new List<PlayerPointsBalanceRow>(matches.Count);
-            foreach (Match m in matches)
-            {
-                var row = new PlayerPointsBalanceRow();
-                int.TryParse(m.Groups[1].Value, out row.id_point_dimension);
-                int.TryParse(m.Groups[2].Value, out row.balance);
+                var row = new PlayerPointsBalanceRow
+                {
+                    id_point_dimension = idPointDimension,
+                    balance = balance,
+                    dimension_code = TryGetJsonStringField(block, "dimension_code"),
+                    dimension_name = TryGetJsonStringField(block, "dimension_name"),
+                    attribute_name = TryGetJsonStringField(block, "attribute_name"),
+                    subattribute_name = TryGetJsonStringField(block, "subattribute_name")
+                };
+
+                if (TryGetJsonIntField(block, "id_players", out var idPlayers))
+                {
+                    row.id_players = idPlayers;
+                }
+
+                if (TryGetJsonIntField(block, "id_attributes", out var idAttributes))
+                {
+                    row.id_attributes = idAttributes;
+                }
+
                 list.Add(row);
+            }
+
+            if (list.Count == 0)
+            {
+                return false;
             }
 
             rows = list.ToArray();
             return true;
+        }
+
+        private static string ExtractJsonArray(string json)
+        {
+            var s = json.Trim().TrimStart('\uFEFF', '\ufeff');
+            if (s.StartsWith("["))
+            {
+                return s;
+            }
+
+            var start = s.IndexOf('[');
+            var end = s.LastIndexOf(']');
+            if (start >= 0 && end > start)
+            {
+                return s.Substring(start, end - start + 1);
+            }
+
+            return null;
+        }
+
+        private static IEnumerable<string> EnumerateJsonObjectBlocks(string arrayJson)
+        {
+            if (string.IsNullOrEmpty(arrayJson))
+            {
+                yield break;
+            }
+
+            var depth = 0;
+            var start = -1;
+            for (var i = 0; i < arrayJson.Length; i++)
+            {
+                var c = arrayJson[i];
+                if (c == '{')
+                {
+                    if (depth == 0)
+                    {
+                        start = i;
+                    }
+
+                    depth++;
+                }
+                else if (c == '}')
+                {
+                    depth--;
+                    if (depth == 0 && start >= 0)
+                    {
+                        yield return arrayJson.Substring(start, i - start + 1);
+                        start = -1;
+                    }
+                }
+            }
+        }
+
+        private static bool TryGetJsonIntField(string obj, string field, out int value)
+        {
+            value = 0;
+            var pattern = "\"" + Regex.Escape(field) + "\"\\s*:\\s*(-?\\d+)";
+            var m = Regex.Match(obj, pattern, RegexOptions.CultureInvariant);
+            if (!m.Success)
+            {
+                return false;
+            }
+
+            return int.TryParse(m.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
+        }
+
+        private static bool TryGetJsonNumberField(string obj, string field, out int value)
+        {
+            value = 0;
+            var pattern = "\"" + Regex.Escape(field) + "\"\\s*:\\s*(-?\\d+(?:\\.\\d+)?)";
+            var m = Regex.Match(obj, pattern, RegexOptions.CultureInvariant);
+            if (!m.Success)
+            {
+                return false;
+            }
+
+            if (double.TryParse(m.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number))
+            {
+                value = (int)Math.Round(number);
+                return true;
+            }
+
+            return false;
+        }
+
+        private static string TryGetJsonStringField(string obj, string field)
+        {
+            var pattern = "\"" + Regex.Escape(field) + "\"\\s*:\\s*\"([^\"]*)\"";
+            var m = Regex.Match(obj, pattern, RegexOptions.CultureInvariant);
+            return m.Success ? m.Groups[1].Value : null;
+        }
+
+        private static string FirstNonEmpty(params string[] values)
+        {
+            foreach (var v in values)
+            {
+                if (!string.IsNullOrWhiteSpace(v))
+                {
+                    return v;
+                }
+            }
+
+            return string.Empty;
         }
     }
 

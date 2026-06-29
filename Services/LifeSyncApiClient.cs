@@ -129,6 +129,12 @@ namespace MyFirstSubnauticaMod.Services
                 jsonBody);
         }
 
+        /// <summary>POST /game-logs/sessions — sube el log acumulado al cerrar sesión LifeSync.</summary>
+        public Task<ApiCallResult> PostGameLogSessionAsync(string jsonBody)
+        {
+            return SendPostRawJsonAsync("game-logs/sessions", jsonBody);
+        }
+
         /// <summary>GET /health (Core API)</summary>
         public Task<ApiCallResult> GetHealthAsync()
         {

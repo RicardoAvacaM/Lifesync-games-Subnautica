@@ -22,7 +22,9 @@ namespace MyFirstSubnauticaMod
         // 1.0.0
         private const string MyGUID = "com.Ricardo.MyFirstSubnauticaMod";
         private const string PluginName = "MyFirstSubnauticaMod";
-        private const string VersionString = "1.0.32";
+        private const string VersionString = "1.0.36";
+
+        internal static string ModVersion => VersionString;
 
         /// <summary>Sube este número cuando quieras forzar una sola vez los defaults de LifeSync en cfg antiguos.</summary>
         private const int LifeSyncSettingsBundleRevision = 3;
@@ -142,10 +144,7 @@ namespace MyFirstSubnauticaMod
             var client = host.AddComponent<LifeSyncApiClient>();
             ApiClient = client;
             ConfigureLifeSyncApiClient(client);
-            if (Player.main != null)
-            {
-                PlayerStatsCsvLogger.EnsureOnPlayer(Player.main);
-            }
+            GameSessionLogService.EnsureOnHost(host);
 
             Log.LogWarning(
                 "[LifeSync][API] Se recreó LifeSyncApiClient (el anterior no existía o fue destruido al cambiar de escena). " +
@@ -341,6 +340,7 @@ namespace MyFirstSubnauticaMod
             var serviceHost = CreatePersistentServiceHost();
             ApiClient = serviceHost.AddComponent<LifeSyncApiClient>();
             ConfigureLifeSyncApiClient(ApiClient);
+            GameSessionLogService.EnsureOnHost(serviceHost);
 
             LifeSyncInputRegistration.EnsureRegistered(Logger, LifeSyncLoginMenuKey.Value);
 
