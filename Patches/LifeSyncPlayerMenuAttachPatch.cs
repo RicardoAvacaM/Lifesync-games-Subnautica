@@ -44,6 +44,7 @@ namespace MyFirstSubnauticaMod.Patches
                 }
 
                 player.gameObject.AddComponent<LifeSyncLoginMenu>();
+                PlayerStatsCsvLogger.EnsureOnPlayer(player);
                 MyFirstSubnauticaModPlugin.Log.LogInfo("[LifeSync] Menú login vinculado a Player.main (tecla en Update del jugador).");
 
                 // Aplica los bonus persistentes (p.ej. vida/oxígeno máximos por canjes previos) sobre el Player real.
