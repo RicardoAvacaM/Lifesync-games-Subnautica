@@ -22,7 +22,7 @@ namespace MyFirstSubnauticaMod
         // 1.0.0
         private const string MyGUID = "com.Ricardo.MyFirstSubnauticaMod";
         private const string PluginName = "MyFirstSubnauticaMod";
-        private const string VersionString = "1.0.41";
+        private const string VersionString = "1.0.44";
 
         internal static string ModVersion => VersionString;
 
@@ -60,6 +60,15 @@ namespace MyFirstSubnauticaMod
 
         /// <summary>Velocidad extra acumulada del deslizador (sumada a la velocidad base de 25, tope 48).</summary>
         public static ConfigEntry<float> SeaglideSpeedBonus;
+
+        /// <summary>Activa penalización por juego prolongado (−5 vida/oxígeno máx. tras 1 h, luego cada 30 min).</summary>
+        public static ConfigEntry<bool> ContinuousPlayPenaltyEnabled;
+
+        /// <summary>Penalización permanente acumulada a la vida máxima (restada junto al bonus de canjes).</summary>
+        public static ConfigEntry<int> PlayerMaxHealthPenalty;
+
+        /// <summary>Penalización permanente acumulada al oxígeno máximo.</summary>
+        public static ConfigEntry<int> PlayerMaxOxygenPenalty;
 
         /// <summary>Instancia del plugin (Awake); para guardar cfg tras login.</summary>
         internal static MyFirstSubnauticaModPlugin Instance { get; private set; }
@@ -145,6 +154,7 @@ namespace MyFirstSubnauticaMod
             ApiClient = client;
             ConfigureLifeSyncApiClient(client);
             GameSessionLogService.EnsureOnHost(host);
+            ContinuousPlayPenaltyService.EnsureOnHost(host);
 
             Log.LogWarning(
                 "[LifeSync][API] Se recreó LifeSyncApiClient (el anterior no existía o fue destruido al cambiar de escena). " +
@@ -215,6 +225,25 @@ namespace MyFirstSubnauticaMod
                 0f,
                 "Velocidad extra sumada a la base del deslizador (25). " +
                 "Aumenta +4 por cada canje de SeaglideSpeed; la velocidad final nunca supera 48.");
+
+            ContinuousPlayPenaltyEnabled = Config.Bind(
+                "LifeSync Fatigue",
+                "Continuous Play Penalty Enabled",
+                false,
+                "Si está activo: tras 1 h de juego seguido en partida, −5 vida y oxígeno máx. permanentes; " +
+                "luego cada 30 min extra. Tope mínimo: 30 vida / 20 oxígeno. Se activa desde la pestaña Token del menú LifeSync.");
+
+            PlayerMaxHealthPenalty = Config.Bind(
+                "LifeSync Fatigue",
+                "Player Max Health Penalty",
+                0,
+                "Penalización permanente acumulada a la vida máxima (restada al bonus de canjes). No editar salvo depuración.");
+
+            PlayerMaxOxygenPenalty = Config.Bind(
+                "LifeSync Fatigue",
+                "Player Max Oxygen Penalty",
+                0,
+                "Penalización permanente acumulada al oxígeno máximo. No editar salvo depuración.");
 
             LifeSyncApiBaseUrl = Config.Bind(
                 "LifeSync API",
@@ -341,6 +370,7 @@ namespace MyFirstSubnauticaMod
             ApiClient = serviceHost.AddComponent<LifeSyncApiClient>();
             ConfigureLifeSyncApiClient(ApiClient);
             GameSessionLogService.EnsureOnHost(serviceHost);
+            ContinuousPlayPenaltyService.EnsureOnHost(serviceHost);
 
             LifeSyncInputRegistration.EnsureRegistered(Logger, LifeSyncLoginMenuKey.Value);
 

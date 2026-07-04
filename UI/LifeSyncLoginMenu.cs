@@ -74,6 +74,9 @@ namespace MyFirstSubnauticaMod.UI
         private Button _btnRemaining;
         private Button _btnRefresh;
         private TextMeshProUGUI _tokenStatusLabel;
+        private Toggle _fatigueToggle;
+        private TextMeshProUGUI _fatigueHintLabel;
+        private string _lastFatigueHint;
 
         private RectTransform _pointsListContent;
         private TextMeshProUGUI _pointsStatusLabel;
@@ -503,6 +506,27 @@ namespace MyFirstSubnauticaMod.UI
                 () => StartCoroutine(RefreshTokenRoutine()));
             PlaceTop(_btnRefresh.GetComponent<RectTransform>(), ref y, 46f, 14f);
 
+            var fatigueEnabled = MyFirstSubnauticaModPlugin.ContinuousPlayPenaltyEnabled != null &&
+                                 MyFirstSubnauticaModPlugin.ContinuousPlayPenaltyEnabled.Value;
+            _fatigueToggle = PdaUi.CreateToggle(
+                "FatigueToggle",
+                rt,
+                "Penalizar juego prolongado (−5 vida/oxígeno máx.)",
+                fatigueEnabled,
+                OnFatigueToggleChanged,
+                out var fatigueRow);
+            PlaceTop(fatigueRow, ref y, 40f, 6f);
+
+            _fatigueHintLabel = PdaUi.CreateLabel(
+                "FatigueHint",
+                rt,
+                BuildFatigueHintText(),
+                12,
+                PdaTheme.TextMuted,
+                TextAlignmentOptions.TopLeft,
+                true);
+            PlaceTop(_fatigueHintLabel.rectTransform, ref y, 52f, 8f);
+
             var statusBox = PdaUi.CreatePanel("StatusBox", rt, PdaTheme.Panel);
             statusBox.rectTransform.anchorMin = new Vector2(0f, 0f);
             statusBox.rectTransform.anchorMax = new Vector2(1f, 1f);
@@ -510,6 +534,68 @@ namespace MyFirstSubnauticaMod.UI
             statusBox.rectTransform.offsetMax = new Vector2(0f, -(y + 4f));
             _tokenStatusLabel = PdaUi.CreateLabel("TokenStatus", statusBox.rectTransform, string.Empty, 14, PdaTheme.TextPrimary);
             PdaUi.Stretch(_tokenStatusLabel.rectTransform, 12, 10, 12, 10);
+        }
+
+        private void OnFatigueToggleChanged(bool enabled)
+        {
+            if (MyFirstSubnauticaModPlugin.ContinuousPlayPenaltyEnabled == null)
+            {
+                return;
+            }
+
+            MyFirstSubnauticaModPlugin.ContinuousPlayPenaltyEnabled.Value = enabled;
+            MyFirstSubnauticaModPlugin.Instance?.Config.Save();
+            ContinuousPlayPenaltyService.OnSettingChanged();
+            RefreshFatigueHint(force: true);
+        }
+
+        private static string BuildFatigueHintText()
+        {
+            var enabled = MyFirstSubnauticaModPlugin.ContinuousPlayPenaltyEnabled != null &&
+                          MyFirstSubnauticaModPlugin.ContinuousPlayPenaltyEnabled.Value;
+            var healthPenalty = MyFirstSubnauticaModPlugin.PlayerMaxHealthPenalty?.Value ?? 0;
+            var oxygenPenalty = MyFirstSubnauticaModPlugin.PlayerMaxOxygenPenalty?.Value ?? 0;
+
+            if (!enabled)
+            {
+                return "Desactivado. Si lo activas: tras <b>1 h</b> seguida en partida pierdes <b>5</b> de vida y oxígeno máx. " +
+                       "permanentes; luego cada <b>30 min</b> (mínimo 30 vida / 20 oxígeno). " +
+                       "El menú pausado no cuenta.";
+            }
+
+            var played = ContinuousPlayPenaltyService.FormatMinutes(ContinuousPlayPenaltyService.ContinuousPlaySeconds);
+            var until = ContinuousPlayPenaltyService.FormatMinutes(ContinuousPlayPenaltyService.SecondsUntilNextPenalty);
+            var streak = ContinuousPlayPenaltyService.PenaltiesAppliedThisStreak;
+
+            var sb = new System.Text.StringBuilder(256);
+            sb.Append("Activo · Juego seguido: <b>").Append(played).Append("</b>");
+            sb.Append(" · Próxima penalización en <b>").Append(until).Append("</b>");
+            if (streak > 0)
+            {
+                sb.Append(" (").Append(streak).Append(" ya aplicadas en esta racha)");
+            }
+
+            sb.AppendLine();
+            sb.Append("Acumulado permanente: −").Append(healthPenalty).Append(" vida máx., −")
+                .Append(oxygenPenalty).Append(" oxígeno máx.");
+            return sb.ToString();
+        }
+
+        private void RefreshFatigueHint(bool force = false)
+        {
+            if (_fatigueHintLabel == null)
+            {
+                return;
+            }
+
+            var text = BuildFatigueHintText();
+            if (!force && text == _lastFatigueHint)
+            {
+                return;
+            }
+
+            _lastFatigueHint = text;
+            _fatigueHintLabel.text = text;
         }
 
         private void BuildPointsTab(RectTransform content)
@@ -675,6 +761,17 @@ namespace MyFirstSubnauticaMod.UI
             SetButtonText(_btnRemaining, _sessionRequest == SessionRequestKind.Remaining ? "Consultando…" : "Tiempo restante del token");
             SetButtonText(_btnRefresh, _sessionRequest == SessionRequestKind.Refresh ? "Renovando…" : "Renovar token");
             _tokenStatusLabel.text = _sessionStatus ?? string.Empty;
+
+            if (_sessionTab == SessionTab.Token)
+            {
+                RefreshFatigueHint();
+                if (_fatigueToggle != null &&
+                    MyFirstSubnauticaModPlugin.ContinuousPlayPenaltyEnabled != null &&
+                    _fatigueToggle.isOn != MyFirstSubnauticaModPlugin.ContinuousPlayPenaltyEnabled.Value)
+                {
+                    _fatigueToggle.SetIsOnWithoutNotify(MyFirstSubnauticaModPlugin.ContinuousPlayPenaltyEnabled.Value);
+                }
+            }
 
             // Points tab (carga automática; mensaje de estado si falla o está cargando).
             if (_pointsStatusLabel != null && _pointsStatusLabel.text != (_pointsStatus ?? string.Empty))

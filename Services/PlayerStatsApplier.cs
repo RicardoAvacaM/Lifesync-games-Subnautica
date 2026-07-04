@@ -8,6 +8,9 @@ namespace MyFirstSubnauticaMod.Services
     /// </summary>
     internal static class PlayerStatsApplier
     {
+        internal const int MinEffectiveMaxHealth = 30;
+        internal const int MinEffectiveMaxOxygen = 20;
+
         private static bool _liveMixinDataCloned;
         private static float _originalMaxHealth;
         private static bool _originalOxygenCaptured;
@@ -43,14 +46,20 @@ namespace MyFirstSubnauticaMod.Services
             }
 
             var bonus = MyFirstSubnauticaModPlugin.PlayerMaxHealthBonus.Value;
+            var penalty = GetHealthPenalty();
             var oldMax = live.data.maxHealth;
-            var newMax = _originalMaxHealth + bonus;
+            var newMax = ComputeEffectiveMaxHealth(_originalMaxHealth, bonus, penalty);
             if (Mathf.Approximately(newMax, oldMax))
             {
                 return true;
             }
 
             live.data.maxHealth = newMax;
+
+            if (live.health > newMax)
+            {
+                live.health = newMax;
+            }
 
             if (rescaleCurrent && oldMax > 0f)
             {
@@ -59,8 +68,89 @@ namespace MyFirstSubnauticaMod.Services
             }
 
             MyFirstSubnauticaModPlugin.Log.LogInfo(
-                $"[LifeSync][Stats] maxHealth: {oldMax} → {newMax} (bonus={bonus}). " +
+                $"[LifeSync][Stats] maxHealth: {oldMax} → {newMax} (bonus={bonus}, penalty={penalty}). " +
                 $"health actual = {live.health:0.##}.");
+            return true;
+        }
+
+        internal static int GetHealthPenalty()
+        {
+            return MyFirstSubnauticaModPlugin.PlayerMaxHealthPenalty?.Value ?? 0;
+        }
+
+        internal static int GetOxygenPenalty()
+        {
+            return MyFirstSubnauticaModPlugin.PlayerMaxOxygenPenalty?.Value ?? 0;
+        }
+
+        internal static float ComputeEffectiveMaxHealth(float originalBase, int bonus, int penalty)
+        {
+            return Mathf.Max(MinEffectiveMaxHealth, originalBase + bonus - penalty);
+        }
+
+        internal static float ComputeEffectiveMaxOxygen(float originalBase, int bonus, int penalty)
+        {
+            return Mathf.Max(MinEffectiveMaxOxygen, originalBase + bonus - penalty);
+        }
+
+        /// <summary>
+        /// Resta <paramref name="amount"/> a vida y oxígeno máx. permanentes (cfg), respetando pisos 30/20.
+        /// </summary>
+        internal static bool TryApplyFatiguePenalty(int amount)
+        {
+            if (amount <= 0)
+            {
+                return false;
+            }
+
+            var player = Player.main;
+            if (player == null)
+            {
+                return false;
+            }
+
+            ApplyMaxHealthBonus(rescaleCurrent: false);
+            ApplyMaxOxygenBonus(fillToFull: false);
+
+            var live = player.liveMixin;
+            var oxygen = player.GetComponent<Oxygen>() ?? player.GetComponentInChildren<Oxygen>();
+            if (live == null || live.data == null || oxygen == null)
+            {
+                return false;
+            }
+
+            var healthBonus = MyFirstSubnauticaModPlugin.PlayerMaxHealthBonus.Value;
+            var oxygenBonus = MyFirstSubnauticaModPlugin.PlayerMaxOxygenBonus.Value;
+            var healthPenalty = GetHealthPenalty();
+            var oxygenPenalty = GetOxygenPenalty();
+
+            var currentHealthMax = live.data.maxHealth;
+            var currentOxygenMax = oxygen.oxygenCapacity;
+            var targetHealthMax = Mathf.Max(MinEffectiveMaxHealth, currentHealthMax - amount);
+            var targetOxygenMax = Mathf.Max(MinEffectiveMaxOxygen, currentOxygenMax - amount);
+
+            if (Mathf.Approximately(targetHealthMax, currentHealthMax) &&
+                Mathf.Approximately(targetOxygenMax, currentOxygenMax))
+            {
+                return false;
+            }
+
+            var newHealthPenalty = healthPenalty + (currentHealthMax - targetHealthMax);
+            var newOxygenPenalty = oxygenPenalty + (currentOxygenMax - targetOxygenMax);
+
+            MyFirstSubnauticaModPlugin.PlayerMaxHealthPenalty.Value = Mathf.RoundToInt(newHealthPenalty);
+            MyFirstSubnauticaModPlugin.PlayerMaxOxygenPenalty.Value = Mathf.RoundToInt(newOxygenPenalty);
+            MyFirstSubnauticaModPlugin.Instance?.Config.Save();
+
+            ApplyMaxHealthBonus(rescaleCurrent: false);
+            ApplyMaxOxygenBonus(fillToFull: false);
+
+            MyFirstSubnauticaModPlugin.Log.LogInfo(
+                $"[LifeSync][Fatigue] Máximos: vida {currentHealthMax:0.##}→{live.data.maxHealth:0.##}, " +
+                $"oxígeno {currentOxygenMax:0.##}→{oxygen.oxygenCapacity:0.##} " +
+                $"(penalty vida={MyFirstSubnauticaModPlugin.PlayerMaxHealthPenalty.Value}, " +
+                $"oxígeno={MyFirstSubnauticaModPlugin.PlayerMaxOxygenPenalty.Value}).");
+
             return true;
         }
 
@@ -103,8 +193,9 @@ namespace MyFirstSubnauticaMod.Services
             }
 
             var bonus = MyFirstSubnauticaModPlugin.PlayerMaxOxygenBonus.Value;
+            var penalty = GetOxygenPenalty();
             var oldCapacity = oxygen.oxygenCapacity;
-            var newCapacity = _originalOxygenCapacity + bonus;
+            var newCapacity = ComputeEffectiveMaxOxygen(_originalOxygenCapacity, bonus, penalty);
             if (Mathf.Approximately(newCapacity, oldCapacity) && !fillToFull)
             {
                 return true;
@@ -121,7 +212,7 @@ namespace MyFirstSubnauticaMod.Services
             }
 
             MyFirstSubnauticaModPlugin.Log.LogInfo(
-                $"[LifeSync][Stats] oxygenCapacity: {oldCapacity} → {newCapacity} (bonus={bonus}). " +
+                $"[LifeSync][Stats] oxygenCapacity: {oldCapacity} → {newCapacity} (bonus={bonus}, penalty={penalty}). " +
                 $"oxygenAvailable = {oxygen.oxygenAvailable:0.##}.");
             return true;
         }

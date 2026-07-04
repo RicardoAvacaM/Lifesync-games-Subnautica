@@ -220,5 +220,79 @@ namespace MyFirstSubnauticaMod.UI
             le.minHeight = height;
             return le;
         }
+
+        /// <summary>Checkbox con etiqueta a la derecha (estilo PDA). <paramref name="rowRect"/> es la fila para PlaceTop.</summary>
+        internal static Toggle CreateToggle(
+            string name,
+            Transform parent,
+            string label,
+            bool isOn,
+            UnityAction<bool> onValueChanged,
+            out RectTransform rowRect)
+        {
+            rowRect = CreateRect(name, parent);
+            rowRect.anchorMin = new Vector2(0f, 1f);
+            rowRect.anchorMax = new Vector2(1f, 1f);
+            rowRect.pivot = new Vector2(0.5f, 1f);
+            rowRect.sizeDelta = new Vector2(0f, 40f);
+
+            var boxRt = CreateRect("Box", rowRect);
+            boxRt.anchorMin = new Vector2(0f, 0.5f);
+            boxRt.anchorMax = new Vector2(0f, 0.5f);
+            boxRt.pivot = new Vector2(0f, 0.5f);
+            boxRt.anchoredPosition = new Vector2(10f, 0f);
+            boxRt.sizeDelta = new Vector2(28f, 28f);
+
+            var border = CreatePanel("Border", boxRt, isOn ? PdaTheme.Accent : PdaTheme.AccentDim, true);
+            Stretch(border.rectTransform, 0f, 0f, 0f, 0f);
+            border.raycastTarget = false;
+
+            var inner = CreatePanel("Inner", boxRt, PdaTheme.Panel, true);
+            Stretch(inner.rectTransform, 2f, 2f, 2f, 2f);
+
+            var check = CreateLabel("Check", boxRt, "\u2713", 18, PdaTheme.Accent, TextAlignmentOptions.Center, false);
+            check.fontStyle = FontStyles.Bold;
+            check.raycastTarget = false;
+            Stretch(check.rectTransform, 4f, 2f, 4f, 2f);
+
+            var toggle = boxRt.gameObject.AddComponent<Toggle>();
+            toggle.targetGraphic = inner;
+            toggle.graphic = check;
+            toggle.isOn = isOn;
+            var toggleColors = toggle.colors;
+            toggleColors.normalColor = Color.white;
+            toggleColors.highlightedColor = new Color(1.15f, 1.15f, 1.15f, 1f);
+            toggleColors.pressedColor = new Color(0.88f, 0.88f, 0.88f, 1f);
+            toggleColors.selectedColor = new Color(1.08f, 1.08f, 1.08f, 1f);
+            toggleColors.fadeDuration = 0.06f;
+            toggle.colors = toggleColors;
+
+            toggle.onValueChanged.AddListener(v =>
+            {
+                border.color = v ? PdaTheme.Accent : PdaTheme.AccentDim;
+                onValueChanged?.Invoke(v);
+            });
+
+            var lbl = CreateLabel("Label", rowRect, label, 14, PdaTheme.TextPrimary, TextAlignmentOptions.Left, true);
+            lbl.raycastTarget = false;
+            lbl.rectTransform.anchorMin = new Vector2(0f, 0f);
+            lbl.rectTransform.anchorMax = new Vector2(1f, 1f);
+            lbl.rectTransform.offsetMin = new Vector2(46f, 0f);
+            lbl.rectTransform.offsetMax = new Vector2(-8f, 0f);
+
+            var hit = CreatePanel("RowHit", rowRect, new Color(0f, 0f, 0f, 0.001f), false);
+            Stretch(hit.rectTransform, 0f, 0f, 0f, 0f);
+            var rowBtn = hit.gameObject.AddComponent<Button>();
+            rowBtn.targetGraphic = hit;
+            var colors = rowBtn.colors;
+            colors.normalColor = Color.white;
+            colors.highlightedColor = new Color(1f, 1f, 1f, 0.06f);
+            colors.pressedColor = new Color(1f, 1f, 1f, 0.12f);
+            colors.fadeDuration = 0.05f;
+            rowBtn.colors = colors;
+            rowBtn.onClick.AddListener(() => toggle.isOn = !toggle.isOn);
+
+            return toggle;
+        }
     }
 }
