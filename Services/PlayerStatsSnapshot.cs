@@ -163,7 +163,28 @@ namespace MyFirstSubnauticaMod.Services
 
             var pos = player.transform.position;
             GetInventoryStats(out var inventoryItemCount, out var inventoryCapacity);
-            GetEnvironmentStats(pos, out var waterTemperature, out var isDay, out var dayNightTime, out var sessionTimePlayed, out var saveSlot, out var gameMode);
+
+            float waterTemperature = 0f;
+            var isDay = false;
+            float dayNightTime = 0f;
+            float sessionTimePlayed = 0f;
+            var saveSlot = string.Empty;
+            var gameMode = string.Empty;
+            try
+            {
+                GetEnvironmentStats(
+                    pos,
+                    out waterTemperature,
+                    out isDay,
+                    out dayNightTime,
+                    out sessionTimePlayed,
+                    out saveSlot,
+                    out gameMode);
+            }
+            catch
+            {
+                // Campos de entorno opcionales; no deben bloquear el sample del CSV.
+            }
 
             snapshot = new PlayerStatsSnapshot
             {
@@ -200,24 +221,24 @@ namespace MyFirstSubnauticaMod.Services
                 Depth = Mathf.Max(0f, -pos.y),
                 GameMode = gameMode,
                 SaveSlot = saveSlot,
-                Biome = GetBiomeName(player),
-                MotorMode = player.motorMode.ToString(),
-                PlayerMode = player.mode.ToString(),
-                IsUnderwater = player.IsUnderwater(),
-                IsSwimming = player.IsSwimming(),
-                IsInSub = player.IsInSub(),
-                IsInsideWalkable = player.IsInsideWalkable(),
-                InSeamoth = player.inSeamoth,
-                InExosuit = player.inExosuit,
-                IsPiloting = player.IsPiloting(),
-                VehicleContext = GetVehicleContext(player),
-                GameDepth = player.GetDepth(),
-                DepthLevel = player.depthLevel,
-                MaxDepth = player.maxDepth,
+                Biome = SafeString(() => GetBiomeName(player)),
+                MotorMode = SafeString(() => player.motorMode.ToString()),
+                PlayerMode = SafeString(() => GetPlayerModeLabel(player)),
+                IsUnderwater = SafeBool(() => player.IsUnderwater()),
+                IsSwimming = SafeBool(() => player.IsSwimming()),
+                IsInSub = SafeBool(() => player.IsInSub()),
+                IsInsideWalkable = SafeBool(() => player.IsInsideWalkable()),
+                InSeamoth = SafeBool(() => player.inSeamoth),
+                InExosuit = SafeBool(() => player.inExosuit),
+                IsPiloting = SafeBool(() => player.IsPiloting()),
+                VehicleContext = SafeString(() => GetVehicleContext(player)),
+                GameDepth = SafeFloat(() => player.GetDepth()),
+                DepthLevel = SafeFloat(() => player.depthLevel),
+                MaxDepth = SafeFloat(() => player.GetDepth()),
                 WaterTemperature = waterTemperature,
-                RadiationAmount = player.radiationAmount,
-                InfectionAmount = player.GetInfectionAmount(),
-                InfectionRevealed = player.infectionRevealed,
+                RadiationAmount = SafeFloat(() => player.radiationAmount),
+                InfectionAmount = SafeFloat(() => player.GetInfectionAmount()),
+                InfectionRevealed = SafeBool(() => player.infectionRevealed),
                 IsDay = isDay,
                 DayNightTime = dayNightTime,
                 SessionTimePlayed = sessionTimePlayed,
@@ -227,6 +248,42 @@ namespace MyFirstSubnauticaMod.Services
             };
 
             return true;
+        }
+
+        private static string SafeString(System.Func<string> getter)
+        {
+            try
+            {
+                return getter() ?? string.Empty;
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        private static bool SafeBool(System.Func<bool> getter)
+        {
+            try
+            {
+                return getter();
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static float SafeFloat(System.Func<float> getter)
+        {
+            try
+            {
+                return getter();
+            }
+            catch
+            {
+                return 0f;
+            }
         }
 
         internal string ToCsvRow()
@@ -362,13 +419,26 @@ namespace MyFirstSubnauticaMod.Services
 
         private static string GetBiomeName(Player player)
         {
-            var biome = player.GetBiomeString();
-            if (!string.IsNullOrEmpty(biome))
+            // GetBiomeString es público; biomeString es private en runtime.
+            return player.GetBiomeString() ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Etiqueta de modo sin leer <c>Player.mode</c> (campo private en Assembly-CSharp runtime).
+        /// </summary>
+        private static string GetPlayerModeLabel(Player player)
+        {
+            if (player.IsPiloting())
             {
-                return biome;
+                return "Piloting";
             }
 
-            return player.biomeString ?? string.Empty;
+            if (player.IsInsideWalkable())
+            {
+                return "Sitting";
+            }
+
+            return "Normal";
         }
 
         private static string GetVehicleContext(Player player)
@@ -438,7 +508,8 @@ namespace MyFirstSubnauticaMod.Services
             dayNightTime = 0f;
             sessionTimePlayed = 0f;
             saveSlot = string.Empty;
-            gameMode = GameModeUtils.currentGameMode.ToString();
+            // currentGameMode / currentSlot / timePlayedThisSession son private en runtime.
+            gameMode = GetGameModeLabel();
 
             var temperatureSimulation = WaterTemperatureSimulation.main;
             if (temperatureSimulation != null)
@@ -459,8 +530,23 @@ namespace MyFirstSubnauticaMod.Services
                 return;
             }
 
-            saveSlot = saveLoadManager.currentSlot ?? string.Empty;
-            sessionTimePlayed = saveLoadManager.timePlayedThisSession;
+            saveSlot = saveLoadManager.GetCurrentSlot() ?? string.Empty;
+            sessionTimePlayed = saveLoadManager.timePlayedTotal;
+        }
+
+        private static string GetGameModeLabel()
+        {
+            try
+            {
+                GameModeOption mode;
+                GameModeOption cheats;
+                GameModeUtils.GetGameMode(out mode, out cheats);
+                return mode.ToString();
+            }
+            catch
+            {
+                return string.Empty;
+            }
         }
 
         private static void GetKnifeStats(out float heldDamage, out float inventoryMaxDamage)

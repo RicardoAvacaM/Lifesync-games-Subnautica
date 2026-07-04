@@ -1,82 +1,55 @@
-using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 
 namespace MyFirstSubnauticaMod.Services
 {
-    internal sealed class SessionLogEvent
-    {
-        public string Type;
-        public string TimestampUtc;
-        public string DataJson;
-    }
-
     /// <summary>Construye el JSON de POST /game-logs/sessions (sin JsonUtility por raw_log anidado).</summary>
     internal static class GameSessionLogPayloadBuilder
     {
-        internal static string BuildRequestJson(
+        /// <summary>
+        /// Payload de un muestreo de 1 minuto en partida: un evento <c>stats_sample</c>
+        /// con todas las columnas del CSV local + resumen de máximos y canjes de mejoras.
+        /// </summary>
+        internal static string BuildMinuteSampleJson(
             int playerId,
             int videogameId,
             string sessionStart,
             string sessionEnd,
             string modVersion,
-            int totalPointsSpent,
-            int redemptionsCount,
-            IReadOnlyList<SessionLogEvent> events,
+            int sessionPointsSpent,
+            int sessionRedemptionsCount,
+            PlayerStatsSnapshot stats,
             SessionProgressSnapshot progress)
         {
-            var rawLog = BuildRawLogJson(events, totalPointsSpent, redemptionsCount, progress);
-            var sb = new StringBuilder(rawLog.Length + 256);
+            var statsJson = stats.ToJsonDataObject();
+            var sb = new StringBuilder(statsJson.Length + 512);
             sb.Append('{');
             AppendInt(sb, "player_id", playerId, first: true);
             AppendInt(sb, "videogame_id", videogameId);
             AppendString(sb, "session_start", sessionStart);
             AppendString(sb, "session_end", sessionEnd);
             AppendString(sb, "mod_version", modVersion);
-            AppendInt(sb, "total_points_spent", totalPointsSpent);
-            AppendInt(sb, "redemptions_count", redemptionsCount);
-            sb.Append(",\"raw_log\":");
-            sb.Append(rawLog);
-            sb.Append('}');
-            return sb.ToString();
-        }
-
-        internal static string BuildEventJson(string type, string timestampUtc, string dataJson)
-        {
-            var data = string.IsNullOrEmpty(dataJson) ? "{}" : dataJson;
-            return string.Format(
-                CultureInfo.InvariantCulture,
-                "{{\"type\":\"{0}\",\"timestamp\":\"{1}\",\"data\":{2}}}",
-                EscapeJson(type),
-                EscapeJson(timestampUtc),
-                data);
-        }
-
-        private static string BuildRawLogJson(
-            IReadOnlyList<SessionLogEvent> events,
-            int totalPointsSpent,
-            int redemptionsCount,
-            SessionProgressSnapshot progress)
-        {
-            var sb = new StringBuilder(4096);
-            sb.Append("{\"events\":[");
-            for (var i = 0; i < events.Count; i++)
-            {
-                if (i > 0)
-                {
-                    sb.Append(',');
-                }
-
-                sb.Append(BuildEventJson(events[i].Type, events[i].TimestampUtc, events[i].DataJson));
-            }
-
+            AppendInt(sb, "total_points_spent", sessionPointsSpent);
+            AppendInt(sb, "redemptions_count", sessionRedemptionsCount);
+            sb.Append(",\"raw_log\":{");
+            sb.Append("\"events\":[");
+            sb.Append(BuildEventJson("stats_sample", sessionEnd, statsJson));
             sb.Append("],\"summary\":{");
-            sb.Append("\"redemptions_count\":").Append(redemptionsCount.ToString(CultureInfo.InvariantCulture));
-            sb.Append(",\"total_points_spent\":").Append(totalPointsSpent.ToString(CultureInfo.InvariantCulture));
-            sb.Append(",\"health_max\":").Append(FormatFloat(progress.HealthMax));
-            sb.Append(",\"oxygen_max\":").Append(FormatFloat(progress.OxygenMax));
-            sb.Append(",\"health_bonus_cfg\":").Append(progress.HealthBonusCfg.ToString(CultureInfo.InvariantCulture));
-            sb.Append(",\"oxygen_bonus_cfg\":").Append(progress.OxygenBonusCfg.ToString(CultureInfo.InvariantCulture));
+            sb.Append("\"samples_count\":1");
+            sb.Append(",\"redemptions_count\":").Append(sessionRedemptionsCount.ToString(CultureInfo.InvariantCulture));
+            sb.Append(",\"total_points_spent\":").Append(sessionPointsSpent.ToString(CultureInfo.InvariantCulture));
+            sb.Append(",\"health\":").Append(FormatFloat(stats.Health));
+            sb.Append(",\"health_max\":").Append(FormatFloat(stats.HealthMax));
+            sb.Append(",\"oxygen\":").Append(FormatFloat(stats.Oxygen));
+            sb.Append(",\"oxygen_max\":").Append(FormatFloat(stats.OxygenMax));
+            sb.Append(",\"health_bonus_cfg\":").Append(stats.HealthBonusCfg.ToString(CultureInfo.InvariantCulture));
+            sb.Append(",\"oxygen_bonus_cfg\":").Append(stats.OxygenBonusCfg.ToString(CultureInfo.InvariantCulture));
+            sb.Append(",\"food\":").Append(FormatFloat(stats.Food));
+            sb.Append(",\"water\":").Append(FormatFloat(stats.Water));
+            sb.Append(",\"pos_x\":").Append(FormatFloat(stats.PosX));
+            sb.Append(",\"pos_y\":").Append(FormatFloat(stats.PosY));
+            sb.Append(",\"pos_z\":").Append(FormatFloat(stats.PosZ));
+            sb.Append(",\"depth\":").Append(FormatFloat(stats.Depth));
             sb.Append(",\"redemptions_upgrades_total\":").Append(progress.RedemptionsUpgradesTotal.ToString(CultureInfo.InvariantCulture));
             sb.Append(",\"upgrade_redemptions\":{");
             sb.Append("\"max_health\":").Append(progress.RedemptionsMaxHealth.ToString(CultureInfo.InvariantCulture));
@@ -87,7 +60,19 @@ namespace MyFirstSubnauticaMod.Services
             sb.Append(",\"seaglide_capacity\":").Append(progress.RedemptionsSeaglideCapacity.ToString(CultureInfo.InvariantCulture));
             sb.Append(",\"seaglide_speed\":").Append(progress.RedemptionsSeaglideSpeed.ToString(CultureInfo.InvariantCulture));
             sb.Append("}}}");
+            sb.Append('}');
             return sb.ToString();
+        }
+
+        private static string BuildEventJson(string type, string timestampUtc, string dataJson)
+        {
+            var data = string.IsNullOrEmpty(dataJson) ? "{}" : dataJson;
+            return string.Format(
+                CultureInfo.InvariantCulture,
+                "{{\"type\":\"{0}\",\"timestamp\":\"{1}\",\"data\":{2}}}",
+                EscapeJson(type),
+                EscapeJson(timestampUtc),
+                data);
         }
 
         private static string FormatFloat(float value)
