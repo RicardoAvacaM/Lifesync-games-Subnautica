@@ -22,7 +22,7 @@ namespace MyFirstSubnauticaMod
         // 1.0.0
         private const string MyGUID = "com.Ricardo.MyFirstSubnauticaMod";
         private const string PluginName = "MyFirstSubnauticaMod";
-        private const string VersionString = "1.0.44";
+        private const string VersionString = "1.0.45";
 
         internal static string ModVersion => VersionString;
 
@@ -69,6 +69,11 @@ namespace MyFirstSubnauticaMod
 
         /// <summary>Penalización permanente acumulada al oxígeno máximo.</summary>
         public static ConfigEntry<int> PlayerMaxOxygenPenalty;
+
+        /// <summary>
+        /// Contadores de canjes por mecánica (id=count;…) para escalar el coste +5 por canje previo.
+        /// </summary>
+        public static ConfigEntry<string> RedeemCostEscalationCounts;
 
         /// <summary>Instancia del plugin (Awake); para guardar cfg tras login.</summary>
         internal static MyFirstSubnauticaModPlugin Instance { get; private set; }
@@ -244,6 +249,13 @@ namespace MyFirstSubnauticaMod
                 "Player Max Oxygen Penalty",
                 0,
                 "Penalización permanente acumulada al oxígeno máximo. No editar salvo depuración.");
+
+            RedeemCostEscalationCounts = Config.Bind(
+                "LifeSync Redeem",
+                "Cost Escalation Counts",
+                string.Empty,
+                "Contadores de canjes exitosos por id_modifiable_mechanic_videogame (formato id=count;…). " +
+                "Cada canje previo suma +5 pts a cada monto de la receta. No editar salvo depuración.");
 
             LifeSyncApiBaseUrl = Config.Bind(
                 "LifeSync API",

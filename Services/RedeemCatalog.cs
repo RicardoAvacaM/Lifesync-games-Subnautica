@@ -34,20 +34,27 @@ namespace MyFirstSubnauticaMod.Services
         /// <summary>Resumen legible de los costos, p. ej. «30 pts dimensión: Fisico + 20 pts dimensión: Mental».</summary>
         public string DescribeCosts(IReadOnlyDictionary<int, string> dimensionNames = null)
         {
-            if (Costs == null || Costs.Count == 0)
+            return DescribeCostList(Costs, dimensionNames);
+        }
+
+        internal static string DescribeCostList(
+            IList<RedeemCost> costs,
+            IReadOnlyDictionary<int, string> dimensionNames = null)
+        {
+            if (costs == null || costs.Count == 0)
             {
                 return "sin costo";
             }
 
             var sb = new StringBuilder();
-            for (var i = 0; i < Costs.Count; i++)
+            for (var i = 0; i < costs.Count; i++)
             {
                 if (i > 0)
                 {
                     sb.Append(" + ");
                 }
 
-                sb.Append($"{Costs[i].Amount} pts dimensión: {FormatDimensionLabel(Costs[i].PointDimensionId, dimensionNames)}");
+                sb.Append($"{costs[i].Amount} pts dimensión: {FormatDimensionLabel(costs[i].PointDimensionId, dimensionNames)}");
             }
 
             return sb.ToString();
@@ -70,9 +77,13 @@ namespace MyFirstSubnauticaMod.Services
     /// Catálogo estático que mapea cada mecánica conocida a su receta de canje y a la acción local
     /// que se ejecuta tras un canje exitoso (p. ej. sumar al daño del cuchillo o curar la vida).
     /// Añade aquí más entradas a medida que se incorporen mecánicas al backend.
+    /// Tras cada canje exitoso, cada monto de la receta aumenta en <see cref="CostIncreasePerRedeem"/> puntos
+    /// (persistido en cfg como contador de canjes por mecánica).
     /// </summary>
     internal static class RedeemCatalog
     {
+        internal const int CostIncreasePerRedeem = 5;
+
         private static readonly Dictionary<int, RedeemRecipe> _byMechanicVideogameId = BuildCatalog();
 
         private static Dictionary<int, RedeemRecipe> BuildCatalog()
@@ -205,6 +216,135 @@ namespace MyFirstSubnauticaMod.Services
         internal static bool TryGet(int mechanicVideogameId, out RedeemRecipe recipe)
         {
             return _byMechanicVideogameId.TryGetValue(mechanicVideogameId, out recipe);
+        }
+
+        /// <summary>Canjes exitosos previos de esta mecánica (desde cfg).</summary>
+        internal static int GetTimesRedeemed(int mechanicVideogameId)
+        {
+            if (mechanicVideogameId <= 0)
+            {
+                return 0;
+            }
+
+            var map = ParseCounts(MyFirstSubnauticaModPlugin.RedeemCostEscalationCounts?.Value);
+            return map.TryGetValue(mechanicVideogameId, out var n) ? Math.Max(0, n) : 0;
+        }
+
+        /// <summary>
+        /// Costes a cobrar ahora: base + (canjes previos × <see cref="CostIncreasePerRedeem"/>) en cada monto.
+        /// </summary>
+        internal static List<RedeemCost> GetEffectiveCosts(int mechanicVideogameId, RedeemRecipe recipe)
+        {
+            var result = new List<RedeemCost>();
+            if (recipe?.Costs == null)
+            {
+                return result;
+            }
+
+            var bonus = GetTimesRedeemed(mechanicVideogameId) * CostIncreasePerRedeem;
+            for (var i = 0; i < recipe.Costs.Count; i++)
+            {
+                var c = recipe.Costs[i];
+                result.Add(new RedeemCost(c.PointDimensionId, c.Amount + bonus));
+            }
+
+            return result;
+        }
+
+        internal static string DescribeEffectiveCosts(
+            int mechanicVideogameId,
+            RedeemRecipe recipe,
+            IReadOnlyDictionary<int, string> dimensionNames = null)
+        {
+            return RedeemRecipe.DescribeCostList(GetEffectiveCosts(mechanicVideogameId, recipe), dimensionNames);
+        }
+
+        /// <summary>Tras un canje OK: incrementa el contador y guarda cfg (el próximo canje costará +5 por monto).</summary>
+        internal static void RegisterSuccessfulRedeem(int mechanicVideogameId)
+        {
+            if (mechanicVideogameId <= 0)
+            {
+                return;
+            }
+
+            var map = ParseCounts(MyFirstSubnauticaModPlugin.RedeemCostEscalationCounts?.Value);
+            map.TryGetValue(mechanicVideogameId, out var n);
+            map[mechanicVideogameId] = n + 1;
+
+            if (MyFirstSubnauticaModPlugin.RedeemCostEscalationCounts != null)
+            {
+                MyFirstSubnauticaModPlugin.RedeemCostEscalationCounts.Value = SerializeCounts(map);
+                MyFirstSubnauticaModPlugin.Instance?.Config.Save();
+            }
+
+            MyFirstSubnauticaModPlugin.Log.LogInfo(
+                $"[LifeSync][Redeem] Escalado coste id={mechanicVideogameId}: canjes={map[mechanicVideogameId]} " +
+                $"(próximo +{map[mechanicVideogameId] * CostIncreasePerRedeem} pts por monto).");
+        }
+
+        private static Dictionary<int, int> ParseCounts(string raw)
+        {
+            var map = new Dictionary<int, int>();
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return map;
+            }
+
+            var parts = raw.Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries);
+            for (var i = 0; i < parts.Length; i++)
+            {
+                var p = parts[i].Trim();
+                var eq = p.IndexOf('=');
+                if (eq <= 0 || eq >= p.Length - 1)
+                {
+                    continue;
+                }
+
+                if (!int.TryParse(p.Substring(0, eq).Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ||
+                    id <= 0)
+                {
+                    continue;
+                }
+
+                if (!int.TryParse(p.Substring(eq + 1).Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var count))
+                {
+                    continue;
+                }
+
+                map[id] = Math.Max(0, count);
+            }
+
+            return map;
+        }
+
+        private static string SerializeCounts(Dictionary<int, int> map)
+        {
+            if (map == null || map.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            var sb = new StringBuilder();
+            var first = true;
+            foreach (var kv in map)
+            {
+                if (kv.Value <= 0)
+                {
+                    continue;
+                }
+
+                if (!first)
+                {
+                    sb.Append(';');
+                }
+
+                first = false;
+                sb.Append(kv.Key.ToString(CultureInfo.InvariantCulture));
+                sb.Append('=');
+                sb.Append(kv.Value.ToString(CultureInfo.InvariantCulture));
+            }
+
+            return sb.ToString();
         }
 
         /// <summary>

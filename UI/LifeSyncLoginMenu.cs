@@ -911,7 +911,7 @@ namespace MyFirstSubnauticaMod.UI
 
                 var hasRecipe = RedeemCatalog.TryGet(row.id_modifiable_mechanic_videogame, out var recipe);
                 var costText = hasRecipe
-                    ? $"Costo: {recipe.DescribeCosts(_dimensionNameById)}"
+                    ? $"Costo: {RedeemCatalog.DescribeEffectiveCosts(row.id_modifiable_mechanic_videogame, recipe, _dimensionNameById)}"
                     : (row.id_modifiable_mechanic_videogame > 0 ? "Sin receta local (canje no disponible)" : string.Empty);
                 var cost = PdaUi.CreateLabel("Cost", card.rectTransform, costText, 12, PdaTheme.AccentOrange, TextAlignmentOptions.BottomLeft, true);
                 cost.rectTransform.anchorMin = new Vector2(0f, 0f);
@@ -1066,17 +1066,24 @@ namespace MyFirstSubnauticaMod.UI
                 yield break;
             }
 
+            var effectiveCosts = RedeemCatalog.GetEffectiveCosts(row.id_modifiable_mechanic_videogame, recipe);
+            if (effectiveCosts.Count == 0)
+            {
+                _mechanicsStatus = "La receta no tiene costos definidos.";
+                yield break;
+            }
+
             var gameId = MyFirstSubnauticaModPlugin.LifeSyncApiTestVideogameId.Value;
             _redeemingMechanicVideogameId = row.id_modifiable_mechanic_videogame;
 
             // El endpoint cobra una dimensión por POST: si la mecánica tiene varios costos, se hace uno por uno.
             var costsCharged = 0;
-            for (var i = 0; i < recipe.Costs.Count; i++)
+            for (var i = 0; i < effectiveCosts.Count; i++)
             {
-                var cost = recipe.Costs[i];
+                var cost = effectiveCosts[i];
                 var body = RedeemCatalog.BuildRedeemBodyJson(row.id_modifiable_mechanic_videogame, cost);
                 _mechanicsStatus =
-                    $"Canjeando «{row.modifiable_mechanic_name}» — paso {i + 1}/{recipe.Costs.Count}: {cost.Amount} pts dimensión: {RedeemRecipe.FormatDimensionLabel(cost.PointDimensionId, _dimensionNameById)}…";
+                    $"Canjeando «{row.modifiable_mechanic_name}» — paso {i + 1}/{effectiveCosts.Count}: {cost.Amount} pts dimensión: {RedeemRecipe.FormatDimensionLabel(cost.PointDimensionId, _dimensionNameById)}…";
                 MyFirstSubnauticaModPlugin.Log.LogInfo($"[LifeSync][Redeem] POST redeem body={body}");
 
                 var task = client.PostRedeemAsync(gameId, playerId, body);
@@ -1113,17 +1120,21 @@ namespace MyFirstSubnauticaMod.UI
                 MyFirstSubnauticaModPlugin.Log.LogError($"[LifeSync][Redeem] Error aplicando efecto local: {ex}");
             }
 
+            RedeemCatalog.RegisterSuccessfulRedeem(row.id_modifiable_mechanic_videogame);
+            // Fuerza refresco de etiquetas de costo (+5 en el próximo canje).
+            _lastMechRef = null;
+
             _mechanicsStatus = $"Canje OK: «{row.modifiable_mechanic_name}». {recipe.EffectSummary}";
             MyFirstSubnauticaModPlugin.Log.LogInfo(
-                $"[LifeSync][Redeem] OK ({row.modifiable_mechanic_name}); {recipe.Costs.Count} costo(s) descontado(s).");
+                $"[LifeSync][Redeem] OK ({row.modifiable_mechanic_name}); {effectiveCosts.Count} costo(s) descontado(s).");
 
             var totalCost = 0;
-            foreach (var cost in recipe.Costs)
+            for (var i = 0; i < effectiveCosts.Count; i++)
             {
-                totalCost += cost.Amount;
+                totalCost += effectiveCosts[i].Amount;
             }
 
-            GameSessionLogService.RecordRedemption(row.modifiable_mechanic_name, totalCost, recipe.Costs.Count);
+            GameSessionLogService.RecordRedemption(row.modifiable_mechanic_name, totalCost, effectiveCosts.Count);
 
             yield return StartCoroutine(FetchDimensionsAndBalanceRoutine());
         }
