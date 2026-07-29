@@ -2,7 +2,7 @@ using System.Linq;
 using TMPro;
 using UnityEngine;
 
-namespace MyFirstSubnauticaMod.UI
+namespace LifeSyncGamesSubnautica.UI
 {
     /// <summary>
     /// Paleta, sprites procedurales y fuente para imitar el estilo de la PDA de Subnautica.
@@ -96,7 +96,7 @@ namespace MyFirstSubnauticaMod.UI
                     _font = all.FirstOrDefault(f => f != null);
                 }
 
-                MyFirstSubnauticaModPlugin.Log.LogInfo(
+                LifeSyncGamesSubnauticaPlugin.Log.LogInfo(
                     $"[LifeSync][UI] Fuente TMP elegida: {(_font != null ? _font.name : "NINGUNA")} (de {all.Length} cargadas).");
                 return _font;
             }
@@ -106,10 +106,10 @@ namespace MyFirstSubnauticaMod.UI
         internal static void DumpFontsToLog()
         {
             var all = Resources.FindObjectsOfTypeAll<TMP_FontAsset>();
-            MyFirstSubnauticaModPlugin.Log.LogInfo($"[LifeSync][UI] TMP_FontAsset cargadas ({all.Length}):");
+            LifeSyncGamesSubnauticaPlugin.Log.LogInfo($"[LifeSync][UI] TMP_FontAsset cargadas ({all.Length}):");
             foreach (var f in all.Where(f => f != null).OrderBy(f => f.name))
             {
-                MyFirstSubnauticaModPlugin.Log.LogInfo($"[LifeSync][UI]   • {f.name}");
+                LifeSyncGamesSubnauticaPlugin.Log.LogInfo($"[LifeSync][UI]   • {f.name}");
             }
         }
 

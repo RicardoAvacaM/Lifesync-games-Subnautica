@@ -1,9 +1,9 @@
 using System.Globalization;
 using System.Text;
-using MyFirstSubnauticaMod;
+using LifeSyncGamesSubnautica;
 using UnityEngine;
 
-namespace MyFirstSubnauticaMod.Services
+namespace LifeSyncGamesSubnautica.Services
 {
     /// <summary>
     /// Foto de progreso al cerrar sesión LifeSync: máximos de vida/oxígeno y canjes acumulados de mejoras permanentes.
@@ -67,8 +67,8 @@ namespace MyFirstSubnauticaMod.Services
 
         internal static SessionProgressSnapshot Build(int sessionRedemptionsCount, int sessionPointsSpent)
         {
-            var healthBonus = MyFirstSubnauticaModPlugin.PlayerMaxHealthBonus.Value;
-            var oxygenBonus = MyFirstSubnauticaModPlugin.PlayerMaxOxygenBonus.Value;
+            var healthBonus = LifeSyncGamesSubnauticaPlugin.PlayerMaxHealthBonus.Value;
+            var oxygenBonus = LifeSyncGamesSubnauticaPlugin.PlayerMaxOxygenBonus.Value;
 
             var healthMax = DefaultBaseHealth + healthBonus;
             var oxygenMax = DefaultBaseOxygen + oxygenBonus;
@@ -105,18 +105,18 @@ namespace MyFirstSubnauticaMod.Services
             return new SessionProgressSnapshot
             {
                 UtcTime = FormatUtcNow(),
-                PlayerId = MyFirstSubnauticaModPlugin.LifeSyncCachedPlayerId.Value,
+                PlayerId = LifeSyncGamesSubnauticaPlugin.LifeSyncCachedPlayerId.Value,
                 HealthMax = healthMax,
                 OxygenMax = oxygenMax,
                 HealthBonusCfg = healthBonus,
                 OxygenBonusCfg = oxygenBonus,
                 HealthMaxFromPlayer = healthFromPlayer,
                 OxygenMaxFromPlayer = oxygenFromPlayer,
-                KnifeBonusDamageCfg = MyFirstSubnauticaModPlugin.KnifeBonusDamage.Value,
-                FlashlightCapacityBonusPctCfg = MyFirstSubnauticaModPlugin.FlashlightCapacityBonusPercent.Value,
-                FlashlightDrainReductionCfg = MyFirstSubnauticaModPlugin.FlashlightDrainReduction.Value,
-                SeaglideCapacityBonusPctCfg = MyFirstSubnauticaModPlugin.SeaglideCapacityBonusPercent.Value,
-                SeaglideSpeedBonusCfg = MyFirstSubnauticaModPlugin.SeaglideSpeedBonus.Value,
+                KnifeBonusDamageCfg = LifeSyncGamesSubnauticaPlugin.KnifeBonusDamage.Value,
+                FlashlightCapacityBonusPctCfg = LifeSyncGamesSubnauticaPlugin.FlashlightCapacityBonusPercent.Value,
+                FlashlightDrainReductionCfg = LifeSyncGamesSubnauticaPlugin.FlashlightDrainReduction.Value,
+                SeaglideCapacityBonusPctCfg = LifeSyncGamesSubnauticaPlugin.SeaglideCapacityBonusPercent.Value,
+                SeaglideSpeedBonusCfg = LifeSyncGamesSubnauticaPlugin.SeaglideSpeedBonus.Value,
                 RedemptionsMaxHealth = redemptionsMaxHealth,
                 RedemptionsMaxOxygen = redemptionsMaxOxygen,
                 RedemptionsKnifeDamage = redemptionsKnife,
@@ -143,13 +143,13 @@ namespace MyFirstSubnauticaMod.Services
             out int seaglideSpeed,
             out int total)
         {
-            maxHealth = SafeDivide(MyFirstSubnauticaModPlugin.PlayerMaxHealthBonus.Value, 5);
-            maxOxygen = SafeDivide(MyFirstSubnauticaModPlugin.PlayerMaxOxygenBonus.Value, 5);
-            knifeDamage = Mathf.Max(0, MyFirstSubnauticaModPlugin.KnifeBonusDamage.Value);
-            flashlightCapacity = SafeDivide(MyFirstSubnauticaModPlugin.FlashlightCapacityBonusPercent.Value, 5);
-            flashlightDrain = SafeDivideFloat(MyFirstSubnauticaModPlugin.FlashlightDrainReduction.Value, 0.05f);
-            seaglideCapacity = SafeDivide(MyFirstSubnauticaModPlugin.SeaglideCapacityBonusPercent.Value, 5);
-            seaglideSpeed = SafeDivideFloat(MyFirstSubnauticaModPlugin.SeaglideSpeedBonus.Value, 4f);
+            maxHealth = SafeDivide(LifeSyncGamesSubnauticaPlugin.PlayerMaxHealthBonus.Value, 5);
+            maxOxygen = SafeDivide(LifeSyncGamesSubnauticaPlugin.PlayerMaxOxygenBonus.Value, 5);
+            knifeDamage = Mathf.Max(0, LifeSyncGamesSubnauticaPlugin.KnifeBonusDamage.Value);
+            flashlightCapacity = SafeDivide(LifeSyncGamesSubnauticaPlugin.FlashlightCapacityBonusPercent.Value, 5);
+            flashlightDrain = SafeDivideFloat(LifeSyncGamesSubnauticaPlugin.FlashlightDrainReduction.Value, 0.05f);
+            seaglideCapacity = SafeDivide(LifeSyncGamesSubnauticaPlugin.SeaglideCapacityBonusPercent.Value, 5);
+            seaglideSpeed = SafeDivideFloat(LifeSyncGamesSubnauticaPlugin.SeaglideSpeedBonus.Value, 4f);
 
             total = maxHealth + maxOxygen + knifeDamage + flashlightCapacity + flashlightDrain +
                     seaglideCapacity + seaglideSpeed;

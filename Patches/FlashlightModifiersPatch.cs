@@ -1,7 +1,7 @@
 using HarmonyLib;
-using MyFirstSubnauticaMod.Services;
+using LifeSyncGamesSubnautica.Services;
 
-namespace MyFirstSubnauticaMod.Patches
+namespace LifeSyncGamesSubnautica.Patches
 {
     /// <summary>
     /// Reaplica los modificadores de la linterna (capacidad de batería y consumo) cada vez que

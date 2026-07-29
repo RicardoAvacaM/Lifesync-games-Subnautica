@@ -1,11 +1,11 @@
 using System.Collections;
 using UnityEngine;
 
-namespace MyFirstSubnauticaMod.Services
+namespace LifeSyncGamesSubnautica.Services
 {
     /// <summary>
     /// Tras 1 h de juego seguido en partida, aplica −5 vida/oxígeno máx. permanentes cada 30 min extra.
-    /// Solo corre si <see cref="MyFirstSubnauticaModPlugin.ContinuousPlayPenaltyEnabled"/> está activo.
+    /// Solo corre si <see cref="LifeSyncGamesSubnauticaPlugin.ContinuousPlayPenaltyEnabled"/> está activo.
     /// </summary>
     internal sealed class ContinuousPlayPenaltyService : MonoBehaviour
     {
@@ -90,8 +90,8 @@ namespace MyFirstSubnauticaMod.Services
 
         private static bool IsEnabled()
         {
-            return MyFirstSubnauticaModPlugin.ContinuousPlayPenaltyEnabled != null &&
-                   MyFirstSubnauticaModPlugin.ContinuousPlayPenaltyEnabled.Value;
+            return LifeSyncGamesSubnauticaPlugin.ContinuousPlayPenaltyEnabled != null &&
+                   LifeSyncGamesSubnauticaPlugin.ContinuousPlayPenaltyEnabled.Value;
         }
 
         private void RestartTracking()
@@ -172,12 +172,12 @@ namespace MyFirstSubnauticaMod.Services
 
             if (!PlayerStatsApplier.TryApplyFatiguePenalty(PenaltyPerStep))
             {
-                MyFirstSubnauticaModPlugin.Log.LogInfo(
+                LifeSyncGamesSubnauticaPlugin.Log.LogInfo(
                     "[LifeSync][Fatigue] Penalización omitida (tope mínimo de vida/oxígeno alcanzado).");
             }
             else
             {
-                MyFirstSubnauticaModPlugin.Log.LogInfo(
+                LifeSyncGamesSubnauticaPlugin.Log.LogInfo(
                     $"[LifeSync][Fatigue] Penalización aplicada (−{PenaltyPerStep} vida/oxígeno máx. permanentes). " +
                     $"Tiempo seguido={FormatMinutes(_continuousPlaySeconds)}, " +
                     $"penalizaciones en racha={_penaltiesAppliedThisStreak + 1}.");

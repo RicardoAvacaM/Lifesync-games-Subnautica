@@ -3,7 +3,7 @@ using BepInEx.Logging;
 using Nautilus.Handlers;
 using UnityEngine;
 
-namespace MyFirstSubnauticaMod.Input
+namespace LifeSyncGamesSubnautica.Input
 {
     /// <summary>
     /// Registra una entrada en el sistema <see cref="GameInput"/> de Subnautica (vía Nautilus).

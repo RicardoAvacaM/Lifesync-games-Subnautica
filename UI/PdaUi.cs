@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
 
-namespace MyFirstSubnauticaMod.UI
+namespace LifeSyncGamesSubnautica.UI
 {
     /// <summary>
     /// Fábrica de elementos uGUI con estética PDA. Todo se crea por código (sin prefabs ni .asset).

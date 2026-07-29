@@ -2,11 +2,11 @@ using System.Collections;
 using System.Text;
 using System.Threading.Tasks;
 using BepInEx.Logging;
-using MyFirstSubnauticaMod.Services.Models;
+using LifeSyncGamesSubnautica.Services.Models;
 using UnityEngine;
 using UnityEngine.Networking;
 
-namespace MyFirstSubnauticaMod.Services
+namespace LifeSyncGamesSubnautica.Services
 {
     /// <summary>
     /// Cliente HTTP para conectar Subnautica con LifeSync-Games sin bloquear el hilo principal.

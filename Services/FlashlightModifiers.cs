@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace MyFirstSubnauticaMod.Services
+namespace LifeSyncGamesSubnautica.Services
 {
     /// <summary>
     /// Aplica modificadores locales a la linterna del jugador:
@@ -21,14 +21,14 @@ namespace MyFirstSubnauticaMod.Services
         /// <summary>Capacidad objetivo de batería según el bonus de porcentaje acumulado.</summary>
         internal static float GetTargetCapacity()
         {
-            var percent = MyFirstSubnauticaModPlugin.FlashlightCapacityBonusPercent.Value;
+            var percent = LifeSyncGamesSubnauticaPlugin.FlashlightCapacityBonusPercent.Value;
             return _baseCapacity * (1f + percent / 100f);
         }
 
         /// <summary>Consumo objetivo (energía/seg) según la reducción acumulada, con tope inferior.</summary>
         internal static float GetTargetDrain()
         {
-            var reduction = MyFirstSubnauticaModPlugin.FlashlightDrainReduction.Value;
+            var reduction = LifeSyncGamesSubnauticaPlugin.FlashlightDrainReduction.Value;
             return Mathf.Max(MinDrainPerSecond, _baseDrain - reduction);
         }
 
@@ -52,7 +52,7 @@ namespace MyFirstSubnauticaMod.Services
                 {
                     _baseCapacity = battery._capacity;
                     _baseCapacityCaptured = true;
-                    MyFirstSubnauticaModPlugin.Log.LogInfo(
+                    LifeSyncGamesSubnauticaPlugin.Log.LogInfo(
                         $"[LifeSync][Flashlight] Capacidad base capturada = {_baseCapacity}.");
                 }
 
@@ -73,7 +73,7 @@ namespace MyFirstSubnauticaMod.Services
                 {
                     _baseDrain = flashlight.toggleLights.energyPerSecond;
                     _baseDrainCaptured = true;
-                    MyFirstSubnauticaModPlugin.Log.LogInfo(
+                    LifeSyncGamesSubnauticaPlugin.Log.LogInfo(
                         $"[LifeSync][Flashlight] Consumo base capturado = {_baseDrain}/s.");
                 }
 
@@ -83,7 +83,7 @@ namespace MyFirstSubnauticaMod.Services
 
             if (appliedSomething)
             {
-                MyFirstSubnauticaModPlugin.Log.LogInfo(
+                LifeSyncGamesSubnauticaPlugin.Log.LogInfo(
                     $"[LifeSync][Flashlight] Aplicado. capacity≈{GetTargetCapacity():0.##}, drain={GetTargetDrain():0.###}/s.");
             }
 
@@ -105,8 +105,8 @@ namespace MyFirstSubnauticaMod.Services
         /// <summary>Suma +5% de capacidad y reaplica en caliente. Para canjes LifeSync.</summary>
         internal static void IncrementCapacityAndApply(int percentDelta)
         {
-            MyFirstSubnauticaModPlugin.FlashlightCapacityBonusPercent.Value += percentDelta;
-            MyFirstSubnauticaModPlugin.Instance?.Config.Save();
+            LifeSyncGamesSubnauticaPlugin.FlashlightCapacityBonusPercent.Value += percentDelta;
+            LifeSyncGamesSubnauticaPlugin.Instance?.Config.Save();
             ApplyToActiveFlashlight();
         }
 
@@ -117,9 +117,9 @@ namespace MyFirstSubnauticaMod.Services
         internal static void IncrementDrainReductionAndApply(float drainDelta)
         {
             var maxReduction = _baseDrain - MinDrainPerSecond;
-            var newReduction = MyFirstSubnauticaModPlugin.FlashlightDrainReduction.Value + drainDelta;
-            MyFirstSubnauticaModPlugin.FlashlightDrainReduction.Value = Mathf.Clamp(newReduction, 0f, maxReduction);
-            MyFirstSubnauticaModPlugin.Instance?.Config.Save();
+            var newReduction = LifeSyncGamesSubnauticaPlugin.FlashlightDrainReduction.Value + drainDelta;
+            LifeSyncGamesSubnauticaPlugin.FlashlightDrainReduction.Value = Mathf.Clamp(newReduction, 0f, maxReduction);
+            LifeSyncGamesSubnauticaPlugin.Instance?.Config.Save();
             ApplyToActiveFlashlight();
         }
     }

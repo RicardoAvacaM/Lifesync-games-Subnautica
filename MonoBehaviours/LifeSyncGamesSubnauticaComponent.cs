@@ -1,13 +1,13 @@
-﻿using UnityEngine;
+using UnityEngine;
 
-namespace MyFirstSubnauticaMod.MonoBehaviours
+namespace LifeSyncGamesSubnautica.MonoBehaviours
 {
     // TODO Review this file and update to your own requirements, or remove it altogether if not required
     /// <summary>
     /// Template MonoBehaviour class. Use this to add new functionality and behaviours to
     /// the game.
     /// </summary>
-    internal class MyFirstSubnauticaModComponent : MonoBehaviour
+    internal class LifeSyncGamesSubnauticaComponent : MonoBehaviour
     {
         /// <summary>
         /// Unity Awake method.

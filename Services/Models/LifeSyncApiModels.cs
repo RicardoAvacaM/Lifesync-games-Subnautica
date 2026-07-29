@@ -4,7 +4,7 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using UnityEngine;
 
-namespace MyFirstSubnauticaMod.Services.Models
+namespace LifeSyncGamesSubnautica.Services.Models
 {
     [System.Serializable]
     internal class PlayerAttributeUpdateRequest

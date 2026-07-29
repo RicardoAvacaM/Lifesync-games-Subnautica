@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace MyFirstSubnauticaMod.Services
+namespace LifeSyncGamesSubnautica.Services
 {
     /// <summary>
     /// Aplica modificadores locales al deslizador submarino (Seaglide):
@@ -22,14 +22,14 @@ namespace MyFirstSubnauticaMod.Services
         /// <summary>Capacidad objetivo de batería según el bonus de porcentaje acumulado.</summary>
         internal static float GetTargetCapacity()
         {
-            var percent = MyFirstSubnauticaModPlugin.SeaglideCapacityBonusPercent.Value;
+            var percent = LifeSyncGamesSubnauticaPlugin.SeaglideCapacityBonusPercent.Value;
             return _baseCapacity * (1f + percent / 100f);
         }
 
         /// <summary>Velocidad objetivo según el bonus acumulado, con tope superior <see cref="MaxForwardSpeed"/>.</summary>
         internal static float GetTargetSpeed()
         {
-            var bonus = MyFirstSubnauticaModPlugin.SeaglideSpeedBonus.Value;
+            var bonus = LifeSyncGamesSubnauticaPlugin.SeaglideSpeedBonus.Value;
             return Mathf.Min(MaxForwardSpeed, _baseSpeed + bonus);
         }
 
@@ -51,7 +51,7 @@ namespace MyFirstSubnauticaMod.Services
             {
                 _baseCapacity = battery._capacity;
                 _baseCapacityCaptured = true;
-                MyFirstSubnauticaModPlugin.Log.LogInfo(
+                LifeSyncGamesSubnauticaPlugin.Log.LogInfo(
                     $"[LifeSync][Seaglide] Capacidad base capturada = {_baseCapacity}.");
             }
 
@@ -63,7 +63,7 @@ namespace MyFirstSubnauticaMod.Services
                 battery._charge = target;
             }
 
-            MyFirstSubnauticaModPlugin.Log.LogInfo(
+            LifeSyncGamesSubnauticaPlugin.Log.LogInfo(
                 $"[LifeSync][Seaglide] Capacidad aplicada ≈ {target:0.##}.");
             return true;
         }
@@ -80,12 +80,12 @@ namespace MyFirstSubnauticaMod.Services
             {
                 _baseSpeed = controller.seaglideForwardMaxSpeed;
                 _baseSpeedCaptured = true;
-                MyFirstSubnauticaModPlugin.Log.LogInfo(
+                LifeSyncGamesSubnauticaPlugin.Log.LogInfo(
                     $"[LifeSync][Seaglide] Velocidad base capturada = {_baseSpeed}.");
             }
 
             controller.seaglideForwardMaxSpeed = GetTargetSpeed();
-            MyFirstSubnauticaModPlugin.Log.LogInfo(
+            LifeSyncGamesSubnauticaPlugin.Log.LogInfo(
                 $"[LifeSync][Seaglide] Velocidad aplicada = {controller.seaglideForwardMaxSpeed:0.##}.");
             return true;
         }
@@ -105,8 +105,8 @@ namespace MyFirstSubnauticaMod.Services
         /// <summary>Suma +5% de capacidad y reaplica en caliente. Para canjes LifeSync.</summary>
         internal static void IncrementCapacityAndApply(int percentDelta)
         {
-            MyFirstSubnauticaModPlugin.SeaglideCapacityBonusPercent.Value += percentDelta;
-            MyFirstSubnauticaModPlugin.Instance?.Config.Save();
+            LifeSyncGamesSubnauticaPlugin.SeaglideCapacityBonusPercent.Value += percentDelta;
+            LifeSyncGamesSubnauticaPlugin.Instance?.Config.Save();
             ApplyBatteryToActiveSeaglide();
         }
 
@@ -117,9 +117,9 @@ namespace MyFirstSubnauticaMod.Services
         internal static void IncrementSpeedAndApply(float speedDelta)
         {
             var maxBonus = MaxForwardSpeed - _baseSpeed;
-            var newBonus = MyFirstSubnauticaModPlugin.SeaglideSpeedBonus.Value + speedDelta;
-            MyFirstSubnauticaModPlugin.SeaglideSpeedBonus.Value = Mathf.Clamp(newBonus, 0f, maxBonus);
-            MyFirstSubnauticaModPlugin.Instance?.Config.Save();
+            var newBonus = LifeSyncGamesSubnauticaPlugin.SeaglideSpeedBonus.Value + speedDelta;
+            LifeSyncGamesSubnauticaPlugin.SeaglideSpeedBonus.Value = Mathf.Clamp(newBonus, 0f, maxBonus);
+            LifeSyncGamesSubnauticaPlugin.Instance?.Config.Save();
             ApplySpeedToActiveController();
         }
     }

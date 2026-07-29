@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 
-namespace MyFirstSubnauticaMod.Services
+namespace LifeSyncGamesSubnautica.Services
 {
     /// <summary>Un costo del canje: cantidad a descontar de una dimensión de puntos concreta.</summary>
     internal class RedeemCost
@@ -97,10 +97,10 @@ namespace MyFirstSubnauticaMod.Services
                 EffectSummary = "+1 daño base del cuchillo (se aplica al próximo Awake del Knife).",
                 ApplyLocalEffect = () =>
                 {
-                    MyFirstSubnauticaModPlugin.KnifeBonusDamage.Value += 1;
-                    MyFirstSubnauticaModPlugin.Instance?.Config.Save();
-                    MyFirstSubnauticaModPlugin.Log.LogInfo(
-                        $"[LifeSync][Redeem] KnifeBonusDamage ahora = {MyFirstSubnauticaModPlugin.KnifeBonusDamage.Value}");
+                    LifeSyncGamesSubnauticaPlugin.KnifeBonusDamage.Value += 1;
+                    LifeSyncGamesSubnauticaPlugin.Instance?.Config.Save();
+                    LifeSyncGamesSubnauticaPlugin.Log.LogInfo(
+                        $"[LifeSync][Redeem] KnifeBonusDamage ahora = {LifeSyncGamesSubnauticaPlugin.KnifeBonusDamage.Value}");
                 },
             };
 
@@ -112,8 +112,8 @@ namespace MyFirstSubnauticaMod.Services
                 ApplyLocalEffect = () =>
                 {
                     PlayerStatsApplier.IncrementMaxHealthAndApply(5);
-                    MyFirstSubnauticaModPlugin.Log.LogInfo(
-                        $"[LifeSync][Redeem] PlayerMaxHealthBonus ahora = {MyFirstSubnauticaModPlugin.PlayerMaxHealthBonus.Value}");
+                    LifeSyncGamesSubnauticaPlugin.Log.LogInfo(
+                        $"[LifeSync][Redeem] PlayerMaxHealthBonus ahora = {LifeSyncGamesSubnauticaPlugin.PlayerMaxHealthBonus.Value}");
                 },
             };
 
@@ -125,8 +125,8 @@ namespace MyFirstSubnauticaMod.Services
                 ApplyLocalEffect = () =>
                 {
                     PlayerStatsApplier.IncrementMaxOxygenAndApply(5);
-                    MyFirstSubnauticaModPlugin.Log.LogInfo(
-                        $"[LifeSync][Redeem] PlayerMaxOxygenBonus ahora = {MyFirstSubnauticaModPlugin.PlayerMaxOxygenBonus.Value}");
+                    LifeSyncGamesSubnauticaPlugin.Log.LogInfo(
+                        $"[LifeSync][Redeem] PlayerMaxOxygenBonus ahora = {LifeSyncGamesSubnauticaPlugin.PlayerMaxOxygenBonus.Value}");
                 },
             };
 
@@ -139,7 +139,7 @@ namespace MyFirstSubnauticaMod.Services
                 {
                     if (!PlayerStatsApplier.HealToFull())
                     {
-                        MyFirstSubnauticaModPlugin.Log.LogWarning("[LifeSync][Redeem] HealToFull: jugador/LiveMixin no listo.");
+                        LifeSyncGamesSubnauticaPlugin.Log.LogWarning("[LifeSync][Redeem] HealToFull: jugador/LiveMixin no listo.");
                     }
                 },
             };
@@ -153,7 +153,7 @@ namespace MyFirstSubnauticaMod.Services
                 {
                     if (!PlayerStatsApplier.RestoreOxygenToFull())
                     {
-                        MyFirstSubnauticaModPlugin.Log.LogWarning("[LifeSync][Redeem] RestoreOxygenToFull: jugador/oxygenMgr no listo.");
+                        LifeSyncGamesSubnauticaPlugin.Log.LogWarning("[LifeSync][Redeem] RestoreOxygenToFull: jugador/oxygenMgr no listo.");
                     }
                 },
             };
@@ -166,8 +166,8 @@ namespace MyFirstSubnauticaMod.Services
                 ApplyLocalEffect = () =>
                 {
                     FlashlightModifiers.IncrementCapacityAndApply(5);
-                    MyFirstSubnauticaModPlugin.Log.LogInfo(
-                        $"[LifeSync][Redeem] FlashlightCapacityBonusPercent ahora = {MyFirstSubnauticaModPlugin.FlashlightCapacityBonusPercent.Value}%");
+                    LifeSyncGamesSubnauticaPlugin.Log.LogInfo(
+                        $"[LifeSync][Redeem] FlashlightCapacityBonusPercent ahora = {LifeSyncGamesSubnauticaPlugin.FlashlightCapacityBonusPercent.Value}%");
                 },
             };
 
@@ -179,8 +179,8 @@ namespace MyFirstSubnauticaMod.Services
                 ApplyLocalEffect = () =>
                 {
                     FlashlightModifiers.IncrementDrainReductionAndApply(0.05f);
-                    MyFirstSubnauticaModPlugin.Log.LogInfo(
-                        $"[LifeSync][Redeem] FlashlightDrainReduction ahora = {MyFirstSubnauticaModPlugin.FlashlightDrainReduction.Value:0.###}");
+                    LifeSyncGamesSubnauticaPlugin.Log.LogInfo(
+                        $"[LifeSync][Redeem] FlashlightDrainReduction ahora = {LifeSyncGamesSubnauticaPlugin.FlashlightDrainReduction.Value:0.###}");
                 },
             };
 
@@ -192,8 +192,8 @@ namespace MyFirstSubnauticaMod.Services
                 ApplyLocalEffect = () =>
                 {
                     SeaglideModifiers.IncrementCapacityAndApply(5);
-                    MyFirstSubnauticaModPlugin.Log.LogInfo(
-                        $"[LifeSync][Redeem] SeaglideCapacityBonusPercent ahora = {MyFirstSubnauticaModPlugin.SeaglideCapacityBonusPercent.Value}%");
+                    LifeSyncGamesSubnauticaPlugin.Log.LogInfo(
+                        $"[LifeSync][Redeem] SeaglideCapacityBonusPercent ahora = {LifeSyncGamesSubnauticaPlugin.SeaglideCapacityBonusPercent.Value}%");
                 },
             };
 
@@ -205,8 +205,8 @@ namespace MyFirstSubnauticaMod.Services
                 ApplyLocalEffect = () =>
                 {
                     SeaglideModifiers.IncrementSpeedAndApply(4f);
-                    MyFirstSubnauticaModPlugin.Log.LogInfo(
-                        $"[LifeSync][Redeem] SeaglideSpeedBonus ahora = {MyFirstSubnauticaModPlugin.SeaglideSpeedBonus.Value:0.##}");
+                    LifeSyncGamesSubnauticaPlugin.Log.LogInfo(
+                        $"[LifeSync][Redeem] SeaglideSpeedBonus ahora = {LifeSyncGamesSubnauticaPlugin.SeaglideSpeedBonus.Value:0.##}");
                 },
             };
 
@@ -226,7 +226,7 @@ namespace MyFirstSubnauticaMod.Services
                 return 0;
             }
 
-            var map = ParseCounts(MyFirstSubnauticaModPlugin.RedeemCostEscalationCounts?.Value);
+            var map = ParseCounts(LifeSyncGamesSubnauticaPlugin.RedeemCostEscalationCounts?.Value);
             return map.TryGetValue(mechanicVideogameId, out var n) ? Math.Max(0, n) : 0;
         }
 
@@ -267,17 +267,17 @@ namespace MyFirstSubnauticaMod.Services
                 return;
             }
 
-            var map = ParseCounts(MyFirstSubnauticaModPlugin.RedeemCostEscalationCounts?.Value);
+            var map = ParseCounts(LifeSyncGamesSubnauticaPlugin.RedeemCostEscalationCounts?.Value);
             map.TryGetValue(mechanicVideogameId, out var n);
             map[mechanicVideogameId] = n + 1;
 
-            if (MyFirstSubnauticaModPlugin.RedeemCostEscalationCounts != null)
+            if (LifeSyncGamesSubnauticaPlugin.RedeemCostEscalationCounts != null)
             {
-                MyFirstSubnauticaModPlugin.RedeemCostEscalationCounts.Value = SerializeCounts(map);
-                MyFirstSubnauticaModPlugin.Instance?.Config.Save();
+                LifeSyncGamesSubnauticaPlugin.RedeemCostEscalationCounts.Value = SerializeCounts(map);
+                LifeSyncGamesSubnauticaPlugin.Instance?.Config.Save();
             }
 
-            MyFirstSubnauticaModPlugin.Log.LogInfo(
+            LifeSyncGamesSubnauticaPlugin.Log.LogInfo(
                 $"[LifeSync][Redeem] Escalado coste id={mechanicVideogameId}: canjes={map[mechanicVideogameId]} " +
                 $"(próximo +{map[mechanicVideogameId] * CostIncreasePerRedeem} pts por monto).");
         }

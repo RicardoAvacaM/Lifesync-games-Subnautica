@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text;
 using UnityEngine;
 
-namespace MyFirstSubnauticaMod.Services
+namespace LifeSyncGamesSubnautica.Services
 {
     /// <summary>Instantánea de estadísticas del jugador (mismas columnas que el CSV local legacy).</summary>
     internal struct PlayerStatsSnapshot
@@ -190,27 +190,27 @@ namespace MyFirstSubnauticaMod.Services
             {
                 UtcTime = FormatUtcNow(),
                 GameTime = Time.timeSinceLevelLoad,
-                PlayerId = MyFirstSubnauticaModPlugin.LifeSyncCachedPlayerId.Value,
+                PlayerId = LifeSyncGamesSubnauticaPlugin.LifeSyncCachedPlayerId.Value,
                 Health = live != null ? live.health : 0f,
                 HealthMax = live != null ? live.maxHealth : 0f,
-                HealthBonusCfg = MyFirstSubnauticaModPlugin.PlayerMaxHealthBonus.Value,
+                HealthBonusCfg = LifeSyncGamesSubnauticaPlugin.PlayerMaxHealthBonus.Value,
                 Oxygen = oxygenValue,
                 OxygenMax = oxygenMax,
-                OxygenBonusCfg = MyFirstSubnauticaModPlugin.PlayerMaxOxygenBonus.Value,
+                OxygenBonusCfg = LifeSyncGamesSubnauticaPlugin.PlayerMaxOxygenBonus.Value,
                 Food = survival != null ? survival.food : 0f,
                 Water = survival != null ? survival.water : 0f,
-                KnifeDamageMultiplierCfg = MyFirstSubnauticaModPlugin.KnifeDamageMultiplier.Value,
-                KnifeBonusDamageCfg = MyFirstSubnauticaModPlugin.KnifeBonusDamage.Value,
+                KnifeDamageMultiplierCfg = LifeSyncGamesSubnauticaPlugin.KnifeDamageMultiplier.Value,
+                KnifeBonusDamageCfg = LifeSyncGamesSubnauticaPlugin.KnifeBonusDamage.Value,
                 KnifeDamageHeld = knifeHeld,
                 KnifeDamageInventoryMax = knifeInventoryMax,
-                FlashlightCapacityBonusPctCfg = MyFirstSubnauticaModPlugin.FlashlightCapacityBonusPercent.Value,
-                FlashlightDrainReductionCfg = MyFirstSubnauticaModPlugin.FlashlightDrainReduction.Value,
+                FlashlightCapacityBonusPctCfg = LifeSyncGamesSubnauticaPlugin.FlashlightCapacityBonusPercent.Value,
+                FlashlightDrainReductionCfg = LifeSyncGamesSubnauticaPlugin.FlashlightDrainReduction.Value,
                 FlashlightCapacityTarget = FlashlightModifiers.GetTargetCapacity(),
                 FlashlightDrainTarget = FlashlightModifiers.GetTargetDrain(),
                 FlashlightBatteryCharge = flCharge,
                 FlashlightBatteryCapacity = flCapacity,
-                SeaglideCapacityBonusPctCfg = MyFirstSubnauticaModPlugin.SeaglideCapacityBonusPercent.Value,
-                SeaglideSpeedBonusCfg = MyFirstSubnauticaModPlugin.SeaglideSpeedBonus.Value,
+                SeaglideCapacityBonusPctCfg = LifeSyncGamesSubnauticaPlugin.SeaglideCapacityBonusPercent.Value,
+                SeaglideSpeedBonusCfg = LifeSyncGamesSubnauticaPlugin.SeaglideSpeedBonus.Value,
                 SeaglideCapacityTarget = SeaglideModifiers.GetTargetCapacity(),
                 SeaglideSpeedTarget = seaglideSpeedTarget,
                 SeaglideBatteryCharge = sgCharge,

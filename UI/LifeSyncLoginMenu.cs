@@ -1,14 +1,14 @@
 using System.Collections;
 using System.Collections.Generic;
-using MyFirstSubnauticaMod.Input;
-using MyFirstSubnauticaMod.Services;
-using MyFirstSubnauticaMod.Services.Models;
+using LifeSyncGamesSubnautica.Input;
+using LifeSyncGamesSubnautica.Services;
+using LifeSyncGamesSubnautica.Services.Models;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-namespace MyFirstSubnauticaMod.UI
+namespace LifeSyncGamesSubnautica.UI
 {
     /// <summary>
     /// Menú LifeSync en uGUI (Canvas + TextMeshPro) con estética PDA. Sin token muestra el login;
@@ -121,8 +121,8 @@ namespace MyFirstSubnauticaMod.UI
                 return;
             }
 
-            var log = MyFirstSubnauticaModPlugin.Log;
-            var key = MyFirstSubnauticaModPlugin.LifeSyncLoginMenuKey.Value;
+            var log = LifeSyncGamesSubnauticaPlugin.Log;
+            var key = LifeSyncGamesSubnauticaPlugin.LifeSyncLoginMenuKey.Value;
             LifeSyncInputRegistration.EnsureRegistered(log, key);
 
             var gameInputDown = GameInput.IsInitialized &&
@@ -163,7 +163,7 @@ namespace MyFirstSubnauticaMod.UI
                 _dimensionNameById = null;
                 _mechanicRows = null;
 
-                var bearer = MyFirstSubnauticaModPlugin.LifeSyncApiBearerToken.Value;
+                var bearer = LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value;
                 _panel = HasStoredBearer(bearer) ? MenuPanel.Session : MenuPanel.Login;
 
                 EnsureUi();
@@ -261,11 +261,11 @@ namespace MyFirstSubnauticaMod.UI
         {
             yield return GameSessionLogService.EndSessionUploadRoutine();
 
-            MyFirstSubnauticaModPlugin.LifeSyncApiBearerToken.Value = string.Empty;
-            MyFirstSubnauticaModPlugin.LifeSyncCachedPlayerId.Value = 0;
-            var client = MyFirstSubnauticaModPlugin.ResolveApiClient();
+            LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value = string.Empty;
+            LifeSyncGamesSubnauticaPlugin.LifeSyncCachedPlayerId.Value = 0;
+            var client = LifeSyncGamesSubnauticaPlugin.ResolveApiClient();
             client?.SetBearerToken(string.Empty);
-            MyFirstSubnauticaModPlugin.Instance?.Config.Save();
+            LifeSyncGamesSubnauticaPlugin.Instance?.Config.Save();
             _password = string.Empty;
             if (_passwordInput != null)
             {
@@ -282,7 +282,7 @@ namespace MyFirstSubnauticaMod.UI
             _status = "Sesión cerrada. Introduce usuario y contraseña para volver a entrar.";
             _panel = MenuPanel.Login;
             ApplyPanelVisibility();
-            MyFirstSubnauticaModPlugin.Log.LogInfo("[LifeSync][Auth] Sesión cerrada (token e id jugador borrados del .cfg).");
+            LifeSyncGamesSubnauticaPlugin.Log.LogInfo("[LifeSync][Auth] Sesión cerrada (token e id jugador borrados del .cfg).");
         }
 
         // ===================== Construcción de UI =====================
@@ -329,7 +329,7 @@ namespace MyFirstSubnauticaMod.UI
                     }
                     catch (System.Exception ex)
                     {
-                        MyFirstSubnauticaModPlugin.Log.LogWarning($"[LifeSync][UI] No se pudo crear EventSystem propio: {ex.Message}");
+                        LifeSyncGamesSubnauticaPlugin.Log.LogWarning($"[LifeSync][UI] No se pudo crear EventSystem propio: {ex.Message}");
                         return;
                     }
                 }
@@ -506,8 +506,8 @@ namespace MyFirstSubnauticaMod.UI
                 () => StartCoroutine(RefreshTokenRoutine()));
             PlaceTop(_btnRefresh.GetComponent<RectTransform>(), ref y, 46f, 14f);
 
-            var fatigueEnabled = MyFirstSubnauticaModPlugin.ContinuousPlayPenaltyEnabled != null &&
-                                 MyFirstSubnauticaModPlugin.ContinuousPlayPenaltyEnabled.Value;
+            var fatigueEnabled = LifeSyncGamesSubnauticaPlugin.ContinuousPlayPenaltyEnabled != null &&
+                                 LifeSyncGamesSubnauticaPlugin.ContinuousPlayPenaltyEnabled.Value;
             _fatigueToggle = PdaUi.CreateToggle(
                 "FatigueToggle",
                 rt,
@@ -538,23 +538,23 @@ namespace MyFirstSubnauticaMod.UI
 
         private void OnFatigueToggleChanged(bool enabled)
         {
-            if (MyFirstSubnauticaModPlugin.ContinuousPlayPenaltyEnabled == null)
+            if (LifeSyncGamesSubnauticaPlugin.ContinuousPlayPenaltyEnabled == null)
             {
                 return;
             }
 
-            MyFirstSubnauticaModPlugin.ContinuousPlayPenaltyEnabled.Value = enabled;
-            MyFirstSubnauticaModPlugin.Instance?.Config.Save();
+            LifeSyncGamesSubnauticaPlugin.ContinuousPlayPenaltyEnabled.Value = enabled;
+            LifeSyncGamesSubnauticaPlugin.Instance?.Config.Save();
             ContinuousPlayPenaltyService.OnSettingChanged();
             RefreshFatigueHint(force: true);
         }
 
         private static string BuildFatigueHintText()
         {
-            var enabled = MyFirstSubnauticaModPlugin.ContinuousPlayPenaltyEnabled != null &&
-                          MyFirstSubnauticaModPlugin.ContinuousPlayPenaltyEnabled.Value;
-            var healthPenalty = MyFirstSubnauticaModPlugin.PlayerMaxHealthPenalty?.Value ?? 0;
-            var oxygenPenalty = MyFirstSubnauticaModPlugin.PlayerMaxOxygenPenalty?.Value ?? 0;
+            var enabled = LifeSyncGamesSubnauticaPlugin.ContinuousPlayPenaltyEnabled != null &&
+                          LifeSyncGamesSubnauticaPlugin.ContinuousPlayPenaltyEnabled.Value;
+            var healthPenalty = LifeSyncGamesSubnauticaPlugin.PlayerMaxHealthPenalty?.Value ?? 0;
+            var oxygenPenalty = LifeSyncGamesSubnauticaPlugin.PlayerMaxOxygenPenalty?.Value ?? 0;
 
             if (!enabled)
             {
@@ -766,10 +766,10 @@ namespace MyFirstSubnauticaMod.UI
             {
                 RefreshFatigueHint();
                 if (_fatigueToggle != null &&
-                    MyFirstSubnauticaModPlugin.ContinuousPlayPenaltyEnabled != null &&
-                    _fatigueToggle.isOn != MyFirstSubnauticaModPlugin.ContinuousPlayPenaltyEnabled.Value)
+                    LifeSyncGamesSubnauticaPlugin.ContinuousPlayPenaltyEnabled != null &&
+                    _fatigueToggle.isOn != LifeSyncGamesSubnauticaPlugin.ContinuousPlayPenaltyEnabled.Value)
                 {
-                    _fatigueToggle.SetIsOnWithoutNotify(MyFirstSubnauticaModPlugin.ContinuousPlayPenaltyEnabled.Value);
+                    _fatigueToggle.SetIsOnWithoutNotify(LifeSyncGamesSubnauticaPlugin.ContinuousPlayPenaltyEnabled.Value);
                 }
             }
 
@@ -979,7 +979,7 @@ namespace MyFirstSubnauticaMod.UI
             _mechanicsBusy = true;
             _mechanicsStatus = "Consultando catálogo de mecánicas…";
 
-            var client = MyFirstSubnauticaModPlugin.ResolveApiClient();
+            var client = LifeSyncGamesSubnauticaPlugin.ResolveApiClient();
             if (client == null)
             {
                 _mechanicsStatus = "No se pudo crear el cliente API.";
@@ -988,14 +988,14 @@ namespace MyFirstSubnauticaMod.UI
             }
 
             SyncBearerOnClient(client);
-            if (string.IsNullOrWhiteSpace(MyFirstSubnauticaModPlugin.LifeSyncApiBearerToken.Value))
+            if (string.IsNullOrWhiteSpace(LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value))
             {
                 _mechanicsStatus = "Sin token. Inicia sesión primero.";
                 _mechanicsBusy = false;
                 yield break;
             }
 
-            var gameId = MyFirstSubnauticaModPlugin.LifeSyncApiTestVideogameId.Value;
+            var gameId = LifeSyncGamesSubnauticaPlugin.LifeSyncApiTestVideogameId.Value;
             var task = client.GetVideogameMechanicsAsync(gameId);
             while (!task.IsCompleted)
             {
@@ -1007,7 +1007,7 @@ namespace MyFirstSubnauticaMod.UI
             if (!task.Result.Success)
             {
                 _mechanicsStatus = $"Error al cargar mecánicas (HTTP {(int)task.Result.StatusCode}).";
-                MyFirstSubnauticaModPlugin.Log.LogWarning(
+                LifeSyncGamesSubnauticaPlugin.Log.LogWarning(
                     $"[LifeSync][API] videogames/{gameId}/mechanics falló: {task.Result.ErrorMessage}");
                 yield break;
             }
@@ -1021,7 +1021,7 @@ namespace MyFirstSubnauticaMod.UI
 
             _mechanicRows = rows;
             _mechanicsStatus = string.Empty;
-            MyFirstSubnauticaModPlugin.Log.LogInfo(
+            LifeSyncGamesSubnauticaPlugin.Log.LogInfo(
                 $"[LifeSync][API] videogames/{gameId}/mechanics OK ({rows.Length} filas).");
         }
 
@@ -1043,7 +1043,7 @@ namespace MyFirstSubnauticaMod.UI
                 yield break;
             }
 
-            var client = MyFirstSubnauticaModPlugin.ResolveApiClient();
+            var client = LifeSyncGamesSubnauticaPlugin.ResolveApiClient();
             if (client == null)
             {
                 _mechanicsStatus = "No se pudo crear el cliente API.";
@@ -1051,14 +1051,14 @@ namespace MyFirstSubnauticaMod.UI
             }
 
             SyncBearerOnClient(client);
-            if (string.IsNullOrWhiteSpace(MyFirstSubnauticaModPlugin.LifeSyncApiBearerToken.Value))
+            if (string.IsNullOrWhiteSpace(LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value))
             {
                 _mechanicsStatus = "Sin token. Inicia sesión primero.";
                 yield break;
             }
 
             yield return StartCoroutine(CachePlayerIdAfterAuthRoutine(forceRefresh: false));
-            var playerId = MyFirstSubnauticaModPlugin.LifeSyncCachedPlayerId.Value;
+            var playerId = LifeSyncGamesSubnauticaPlugin.LifeSyncCachedPlayerId.Value;
             if (playerId <= 0)
             {
                 _mechanicsStatus = "No se pudo obtener el id del jugador (whoami).";
@@ -1078,7 +1078,7 @@ namespace MyFirstSubnauticaMod.UI
                 yield break;
             }
 
-            var gameId = MyFirstSubnauticaModPlugin.LifeSyncApiTestVideogameId.Value;
+            var gameId = LifeSyncGamesSubnauticaPlugin.LifeSyncApiTestVideogameId.Value;
             _redeemingMechanicVideogameId = row.id_modifiable_mechanic_videogame;
 
             // El endpoint cobra una dimensión por POST: si la mecánica tiene varios costos, se hace uno por uno.
@@ -1089,7 +1089,7 @@ namespace MyFirstSubnauticaMod.UI
                 var body = RedeemCatalog.BuildRedeemBodyJson(row.id_modifiable_mechanic_videogame, cost);
                 _mechanicsStatus =
                     $"Canjeando «{row.modifiable_mechanic_name}» — paso {i + 1}/{effectiveCosts.Count}: {cost.Amount} pts dimensión: {RedeemRecipe.FormatDimensionLabel(cost.PointDimensionId, _dimensionNameById)}…";
-                MyFirstSubnauticaModPlugin.Log.LogInfo($"[LifeSync][Redeem] POST redeem body={body}");
+                LifeSyncGamesSubnauticaPlugin.Log.LogInfo($"[LifeSync][Redeem] POST redeem body={body}");
 
                 var task = client.PostRedeemAsync(gameId, playerId, body);
                 while (!task.IsCompleted)
@@ -1105,7 +1105,7 @@ namespace MyFirstSubnauticaMod.UI
                         : string.Empty;
                     _mechanicsStatus =
                         $"Canje rechazado en el paso {i + 1} (HTTP {(int)task.Result.StatusCode}). Revisa saldo.{partial}";
-                    MyFirstSubnauticaModPlugin.Log.LogWarning(
+                    LifeSyncGamesSubnauticaPlugin.Log.LogWarning(
                         $"[LifeSync][Redeem] FAIL paso {i + 1} HTTP {(int)task.Result.StatusCode}: {task.Result.ErrorMessage} | body={task.Result.ResponseBody}");
                     yield return StartCoroutine(FetchDimensionsAndBalanceRoutine());
                     yield break;
@@ -1122,7 +1122,7 @@ namespace MyFirstSubnauticaMod.UI
             }
             catch (System.Exception ex)
             {
-                MyFirstSubnauticaModPlugin.Log.LogError($"[LifeSync][Redeem] Error aplicando efecto local: {ex}");
+                LifeSyncGamesSubnauticaPlugin.Log.LogError($"[LifeSync][Redeem] Error aplicando efecto local: {ex}");
             }
 
             RedeemCatalog.RegisterSuccessfulRedeem(row.id_modifiable_mechanic_videogame);
@@ -1130,7 +1130,7 @@ namespace MyFirstSubnauticaMod.UI
             _lastMechRef = null;
 
             _mechanicsStatus = $"Canje OK: «{row.modifiable_mechanic_name}». {recipe.EffectSummary}";
-            MyFirstSubnauticaModPlugin.Log.LogInfo(
+            LifeSyncGamesSubnauticaPlugin.Log.LogInfo(
                 $"[LifeSync][Redeem] OK ({row.modifiable_mechanic_name}); {effectiveCosts.Count} costo(s) descontado(s).");
 
             var totalCost = 0;
@@ -1145,20 +1145,20 @@ namespace MyFirstSubnauticaMod.UI
         }
 
         /// <summary>
-        /// GET lsg-auth/whoami y guarda <see cref="MyFirstSubnauticaModPlugin.LifeSyncCachedPlayerId"/>.
+        /// GET lsg-auth/whoami y guarda <see cref="LifeSyncGamesSubnauticaPlugin.LifeSyncCachedPlayerId"/>.
         /// Si <paramref name="forceRefresh"/> es false y ya hay id &gt; 0, no hace red.
         /// </summary>
         private IEnumerator CachePlayerIdAfterAuthRoutine(bool forceRefresh = false)
         {
-            if (!forceRefresh && MyFirstSubnauticaModPlugin.LifeSyncCachedPlayerId.Value > 0)
+            if (!forceRefresh && LifeSyncGamesSubnauticaPlugin.LifeSyncCachedPlayerId.Value > 0)
             {
                 yield break;
             }
 
-            var client = MyFirstSubnauticaModPlugin.ResolveApiClient();
+            var client = LifeSyncGamesSubnauticaPlugin.ResolveApiClient();
             if (client == null)
             {
-                MyFirstSubnauticaModPlugin.Log.LogWarning("[LifeSync][whoami] Sin cliente API.");
+                LifeSyncGamesSubnauticaPlugin.Log.LogWarning("[LifeSync][whoami] Sin cliente API.");
                 if (forceRefresh)
                 {
                     _pointsStatus = "No hay cliente API para whoami.";
@@ -1168,7 +1168,7 @@ namespace MyFirstSubnauticaMod.UI
             }
 
             SyncBearerOnClient(client);
-            if (string.IsNullOrWhiteSpace(MyFirstSubnauticaModPlugin.LifeSyncApiBearerToken.Value))
+            if (string.IsNullOrWhiteSpace(LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value))
             {
                 if (forceRefresh)
                 {
@@ -1186,7 +1186,7 @@ namespace MyFirstSubnauticaMod.UI
 
             if (!task.Result.Success)
             {
-                MyFirstSubnauticaModPlugin.Log.LogWarning($"[LifeSync][whoami] HTTP {(int)task.Result.StatusCode}");
+                LifeSyncGamesSubnauticaPlugin.Log.LogWarning($"[LifeSync][whoami] HTTP {(int)task.Result.StatusCode}");
                 if (forceRefresh)
                 {
                     _pointsStatus = $"whoami falló (HTTP {(int)task.Result.StatusCode}).";
@@ -1197,7 +1197,7 @@ namespace MyFirstSubnauticaMod.UI
 
             if (!LifeSyncPointsJsonParsers.TryParseWhoamiPlayerId(task.Result.ResponseBody, out var pid))
             {
-                MyFirstSubnauticaModPlugin.Log.LogWarning("[LifeSync][whoami] No se pudo leer id_players del JSON.");
+                LifeSyncGamesSubnauticaPlugin.Log.LogWarning("[LifeSync][whoami] No se pudo leer id_players del JSON.");
                 if (forceRefresh)
                 {
                     _pointsStatus = "whoami OK pero no se reconoció id_players.";
@@ -1206,9 +1206,9 @@ namespace MyFirstSubnauticaMod.UI
                 yield break;
             }
 
-            MyFirstSubnauticaModPlugin.LifeSyncCachedPlayerId.Value = pid;
-            MyFirstSubnauticaModPlugin.Instance?.Config.Save();
-            MyFirstSubnauticaModPlugin.Log.LogInfo($"[LifeSync] id_players cacheado: {pid}");
+            LifeSyncGamesSubnauticaPlugin.LifeSyncCachedPlayerId.Value = pid;
+            LifeSyncGamesSubnauticaPlugin.Instance?.Config.Save();
+            LifeSyncGamesSubnauticaPlugin.Log.LogInfo($"[LifeSync] id_players cacheado: {pid}");
             if (forceRefresh)
             {
                 _pointsStatus = $"Id de jugador guardado: {pid}.";
@@ -1227,14 +1227,14 @@ namespace MyFirstSubnauticaMod.UI
                 yield break;
             }
 
-            var client = MyFirstSubnauticaModPlugin.ResolveApiClient();
+            var client = LifeSyncGamesSubnauticaPlugin.ResolveApiClient();
             if (client == null)
             {
                 yield break;
             }
 
             SyncBearerOnClient(client);
-            if (string.IsNullOrWhiteSpace(MyFirstSubnauticaModPlugin.LifeSyncApiBearerToken.Value))
+            if (string.IsNullOrWhiteSpace(LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value))
             {
                 yield break;
             }
@@ -1291,7 +1291,7 @@ namespace MyFirstSubnauticaMod.UI
             _pointsBusy = true;
             _pointsStatus = "Preparando consulta…";
 
-            var client = MyFirstSubnauticaModPlugin.ResolveApiClient();
+            var client = LifeSyncGamesSubnauticaPlugin.ResolveApiClient();
             if (client == null)
             {
                 _pointsStatus = "No se pudo crear el cliente API.";
@@ -1300,7 +1300,7 @@ namespace MyFirstSubnauticaMod.UI
             }
 
             SyncBearerOnClient(client);
-            if (string.IsNullOrWhiteSpace(MyFirstSubnauticaModPlugin.LifeSyncApiBearerToken.Value))
+            if (string.IsNullOrWhiteSpace(LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value))
             {
                 _pointsStatus = "Sin token. Inicia sesión primero.";
                 _pointsBusy = false;
@@ -1309,7 +1309,7 @@ namespace MyFirstSubnauticaMod.UI
 
             yield return StartCoroutine(CachePlayerIdAfterAuthRoutine(forceRefresh: false));
 
-            var playerId = MyFirstSubnauticaModPlugin.LifeSyncCachedPlayerId.Value;
+            var playerId = LifeSyncGamesSubnauticaPlugin.LifeSyncCachedPlayerId.Value;
             if (playerId <= 0)
             {
                 _pointsStatus = "No se pudo obtener el id del jugador (whoami).";
@@ -1327,7 +1327,7 @@ namespace MyFirstSubnauticaMod.UI
             if (!attrTask.Result.Success)
             {
                 _pointsStatus = $"Error al cargar /attributes (HTTP {(int)attrTask.Result.StatusCode}).";
-                MyFirstSubnauticaModPlugin.Log.LogWarning($"[LifeSync][API] /attributes falló: {attrTask.Result.ErrorMessage}");
+                LifeSyncGamesSubnauticaPlugin.Log.LogWarning($"[LifeSync][API] /attributes falló: {attrTask.Result.ErrorMessage}");
                 _pointsBusy = false;
                 yield break;
             }
@@ -1338,7 +1338,7 @@ namespace MyFirstSubnauticaMod.UI
                 _dimensionEntries = null;
                 _dimensionNameById = null;
                 _pointsBusy = false;
-                MyFirstSubnauticaModPlugin.Log.LogWarning(
+                LifeSyncGamesSubnauticaPlugin.Log.LogWarning(
                     "[LifeSync][API] No se pudo parsear /attributes. Respuesta: " +
                     TruncateForLog(attrTask.Result.ResponseBody));
                 yield break;
@@ -1358,7 +1358,7 @@ namespace MyFirstSubnauticaMod.UI
             if (!balTask.Result.Success)
             {
                 _pointsStatus = $"Error al cargar /points/balance (HTTP {(int)balTask.Result.StatusCode}).";
-                MyFirstSubnauticaModPlugin.Log.LogWarning($"[LifeSync][API] points/balance falló: {balTask.Result.ErrorMessage}");
+                LifeSyncGamesSubnauticaPlugin.Log.LogWarning($"[LifeSync][API] points/balance falló: {balTask.Result.ErrorMessage}");
                 yield break;
             }
 
@@ -1366,7 +1366,7 @@ namespace MyFirstSubnauticaMod.UI
             {
                 _pointsStatus = "No se pudo parsear /points/balance (formato inesperado).";
                 _dimensionEntries = null;
-                MyFirstSubnauticaModPlugin.Log.LogWarning(
+                LifeSyncGamesSubnauticaPlugin.Log.LogWarning(
                     "[LifeSync][API] No se pudo parsear /points/balance. Respuesta: " +
                     TruncateForLog(balTask.Result.ResponseBody));
                 yield break;
@@ -1374,7 +1374,7 @@ namespace MyFirstSubnauticaMod.UI
 
             _dimensionEntries = LifeSyncPointsJsonParsers.MergeAttributesWithBalances(attrs, balances);
             _pointsStatus = string.Empty;
-            MyFirstSubnauticaModPlugin.Log.LogInfo(
+            LifeSyncGamesSubnauticaPlugin.Log.LogInfo(
                 $"[LifeSync][API] Dimensiones merged OK (attrs={attrs.Length}, balances={balances.Length}, filas={_dimensionEntries.Length}).");
         }
 
@@ -1391,9 +1391,9 @@ namespace MyFirstSubnauticaMod.UI
 
         private static void SyncBearerOnClient(LifeSyncApiClient client)
         {
-            if (client != null && !string.IsNullOrWhiteSpace(MyFirstSubnauticaModPlugin.LifeSyncApiBearerToken.Value))
+            if (client != null && !string.IsNullOrWhiteSpace(LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value))
             {
-                client.SetBearerToken(MyFirstSubnauticaModPlugin.LifeSyncApiBearerToken.Value.Trim());
+                client.SetBearerToken(LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value.Trim());
             }
         }
 
@@ -1434,7 +1434,7 @@ namespace MyFirstSubnauticaMod.UI
 
         private IEnumerator FetchTokenRemainingRoutine()
         {
-            var client = MyFirstSubnauticaModPlugin.ResolveApiClient();
+            var client = LifeSyncGamesSubnauticaPlugin.ResolveApiClient();
             if (client == null)
             {
                 _sessionStatus = "No se pudo crear el cliente API (revisa el log de BepInEx).";
@@ -1443,7 +1443,7 @@ namespace MyFirstSubnauticaMod.UI
 
             SyncBearerOnClient(client);
 
-            if (string.IsNullOrWhiteSpace(MyFirstSubnauticaModPlugin.LifeSyncApiBearerToken.Value))
+            if (string.IsNullOrWhiteSpace(LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value))
             {
                 _sessionStatus = "No hay token guardado. Cierra el menú y ábrelo de nuevo para ver el inicio de sesión.";
                 yield break;
@@ -1472,7 +1472,7 @@ namespace MyFirstSubnauticaMod.UI
                 _sessionStatus =
                     $"No se pudo obtener el tiempo restante (HTTP {(int)result.StatusCode}). " +
                     "¿Token caducado? Prueba «Renovar token» o vuelve a iniciar sesión.";
-                MyFirstSubnauticaModPlugin.Log.LogWarning($"[LifeSync][Auth] token/remaining falló: {result.ErrorMessage}");
+                LifeSyncGamesSubnauticaPlugin.Log.LogWarning($"[LifeSync][Auth] token/remaining falló: {result.ErrorMessage}");
                 yield break;
             }
 
@@ -1494,12 +1494,12 @@ namespace MyFirstSubnauticaMod.UI
             }
 
             _sessionStatus = FormatTokenRemaining(remaining);
-            MyFirstSubnauticaModPlugin.Log.LogInfo("[LifeSync][Auth] token/remaining OK.");
+            LifeSyncGamesSubnauticaPlugin.Log.LogInfo("[LifeSync][Auth] token/remaining OK.");
         }
 
         private IEnumerator RefreshTokenRoutine()
         {
-            var client = MyFirstSubnauticaModPlugin.ResolveApiClient();
+            var client = LifeSyncGamesSubnauticaPlugin.ResolveApiClient();
             if (client == null)
             {
                 _sessionStatus = "No se pudo crear el cliente API (revisa el log de BepInEx).";
@@ -1508,7 +1508,7 @@ namespace MyFirstSubnauticaMod.UI
 
             SyncBearerOnClient(client);
 
-            if (string.IsNullOrWhiteSpace(MyFirstSubnauticaModPlugin.LifeSyncApiBearerToken.Value))
+            if (string.IsNullOrWhiteSpace(LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value))
             {
                 _sessionStatus = "No hay token para renovar. Inicia sesión primero.";
                 yield break;
@@ -1537,7 +1537,7 @@ namespace MyFirstSubnauticaMod.UI
                 _sessionStatus =
                     $"No se pudo renovar (HTTP {(int)result.StatusCode}). " +
                     "Puede que el token haya expirado; inicia sesión de nuevo con usuario y contraseña.";
-                MyFirstSubnauticaModPlugin.Log.LogWarning($"[LifeSync][Auth] token/refresh falló: {result.ErrorMessage}");
+                LifeSyncGamesSubnauticaPlugin.Log.LogWarning($"[LifeSync][Auth] token/refresh falló: {result.ErrorMessage}");
                 yield break;
             }
 
@@ -1554,16 +1554,16 @@ namespace MyFirstSubnauticaMod.UI
             if (token == null || string.IsNullOrEmpty(token.access_token))
             {
                 _sessionStatus = "El servidor respondió pero no trajo access_token.";
-                MyFirstSubnauticaModPlugin.Log.LogWarning("[LifeSync][Auth] refresh sin access_token.");
+                LifeSyncGamesSubnauticaPlugin.Log.LogWarning("[LifeSync][Auth] refresh sin access_token.");
                 yield break;
             }
 
-            MyFirstSubnauticaModPlugin.LifeSyncApiBearerToken.Value = token.access_token;
+            LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value = token.access_token;
             client.SetBearerToken(token.access_token);
-            MyFirstSubnauticaModPlugin.Instance?.Config.Save();
+            LifeSyncGamesSubnauticaPlugin.Instance?.Config.Save();
             _sessionStatus = "Token renovado correctamente. Ya está guardado en la configuración.";
-            MyFirstSubnauticaModPlugin.Log.LogInfo("[LifeSync][Auth] Token renovado y guardado.");
-            if (MyFirstSubnauticaModPlugin.LifeSyncCachedPlayerId.Value <= 0)
+            LifeSyncGamesSubnauticaPlugin.Log.LogInfo("[LifeSync][Auth] Token renovado y guardado.");
+            if (LifeSyncGamesSubnauticaPlugin.LifeSyncCachedPlayerId.Value <= 0)
             {
                 StartCoroutine(CachePlayerIdAfterAuthRoutine(forceRefresh: true));
             }
@@ -1580,7 +1580,7 @@ namespace MyFirstSubnauticaMod.UI
                 yield break;
             }
 
-            var client = MyFirstSubnauticaModPlugin.ResolveApiClient();
+            var client = LifeSyncGamesSubnauticaPlugin.ResolveApiClient();
             if (client == null)
             {
                 _status = "No se pudo crear el cliente API (revisa el log de BepInEx).";
@@ -1608,7 +1608,7 @@ namespace MyFirstSubnauticaMod.UI
             if (!result.Success)
             {
                 _status = $"Fallo HTTP {(int)result.StatusCode}. Revisa credenciales o la URL de Auth.";
-                MyFirstSubnauticaModPlugin.Log.LogWarning($"[LifeSync][Auth] Login fallido: {result.ErrorMessage}");
+                LifeSyncGamesSubnauticaPlugin.Log.LogWarning($"[LifeSync][Auth] Login fallido: {result.ErrorMessage}");
                 yield break;
             }
 
@@ -1625,13 +1625,13 @@ namespace MyFirstSubnauticaMod.UI
             if (token == null || string.IsNullOrEmpty(token.access_token))
             {
                 _status = "Respuesta sin access_token.";
-                MyFirstSubnauticaModPlugin.Log.LogWarning("[LifeSync][Auth] JSON sin access_token.");
+                LifeSyncGamesSubnauticaPlugin.Log.LogWarning("[LifeSync][Auth] JSON sin access_token.");
                 yield break;
             }
 
-            MyFirstSubnauticaModPlugin.LifeSyncApiBearerToken.Value = token.access_token;
+            LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value = token.access_token;
             client.SetBearerToken(token.access_token);
-            MyFirstSubnauticaModPlugin.Instance?.Config.Save();
+            LifeSyncGamesSubnauticaPlugin.Instance?.Config.Save();
             _password = string.Empty;
             if (_passwordInput != null)
             {
@@ -1642,7 +1642,7 @@ namespace MyFirstSubnauticaMod.UI
             _sessionStatus = "Sesión iniciada. Pestañas Token / Puntos / Mecánicas.";
             _panel = MenuPanel.Session;
             ApplyPanelVisibility();
-            MyFirstSubnauticaModPlugin.Log.LogInfo("[LifeSync][Auth] Login correcto; token guardado.");
+            LifeSyncGamesSubnauticaPlugin.Log.LogInfo("[LifeSync][Auth] Login correcto; token guardado.");
             StartCoroutine(CachePlayerIdAfterAuthRoutine(forceRefresh: true));
         }
     }

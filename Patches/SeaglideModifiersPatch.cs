@@ -1,7 +1,7 @@
 using HarmonyLib;
-using MyFirstSubnauticaMod.Services;
+using LifeSyncGamesSubnautica.Services;
 
-namespace MyFirstSubnauticaMod.Patches
+namespace LifeSyncGamesSubnautica.Patches
 {
     /// <summary>
     /// Reaplica la capacidad de batería del deslizador cada vez que un <see cref="Seaglide"/> arranca,

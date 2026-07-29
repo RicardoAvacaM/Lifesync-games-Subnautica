@@ -1,10 +1,10 @@
 using System.Collections;
 using HarmonyLib;
-using MyFirstSubnauticaMod.Services;
-using MyFirstSubnauticaMod.UI;
+using LifeSyncGamesSubnautica.Services;
+using LifeSyncGamesSubnautica.UI;
 using UnityEngine;
 
-namespace MyFirstSubnauticaMod.Patches
+namespace LifeSyncGamesSubnautica.Patches
 {
     /// <summary>
     /// Ancla el menú IMGUI al <see cref="Player"/> real (Valheim: UI ligada al jugador en escena), no al DDOL del plugin.
@@ -44,18 +44,18 @@ namespace MyFirstSubnauticaMod.Patches
                 }
 
                 player.gameObject.AddComponent<LifeSyncLoginMenu>();
-                MyFirstSubnauticaModPlugin.Log.LogInfo("[LifeSync] Menú login vinculado a Player.main (tecla en Update del jugador).");
+                LifeSyncGamesSubnauticaPlugin.Log.LogInfo("[LifeSync] Menú login vinculado a Player.main (tecla en Update del jugador).");
 
                 // Aplica los bonus persistentes (p.ej. vida/oxígeno máximos por canjes previos) sobre el Player real.
                 if (!PlayerStatsApplier.ApplyMaxHealthBonus(rescaleCurrent: false))
                 {
-                    MyFirstSubnauticaModPlugin.Log.LogWarning(
+                    LifeSyncGamesSubnauticaPlugin.Log.LogWarning(
                         "[LifeSync][Stats] No se pudo aplicar el bonus de maxHealth al iniciar (LiveMixin no listo).");
                 }
 
                 if (!PlayerStatsApplier.ApplyMaxOxygenBonus(fillToFull: false))
                 {
-                    MyFirstSubnauticaModPlugin.Log.LogWarning(
+                    LifeSyncGamesSubnauticaPlugin.Log.LogWarning(
                         "[LifeSync][Stats] No se pudo aplicar el bonus de oxígeno al iniciar (Oxygen no listo).");
                 }
 

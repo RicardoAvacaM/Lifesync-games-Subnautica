@@ -7,8 +7,8 @@
     <ProjectGuid>{1FA21C6A-D9EB-42D6-AF5D-4F14585A40D5}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>MyFirstSubnauticaMod</RootNamespace>
-    <AssemblyName>MyFirstSubnauticaMod</AssemblyName>
+    <RootNamespace>LifeSyncGamesSubnautica</RootNamespace>
+    <AssemblyName>LifeSync-Games-Subnautica</AssemblyName>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
@@ -92,12 +92,13 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="MonoBehaviours\MyFirstSubnauticaModComponent.cs" />
+    <Compile Include="MonoBehaviours\LifeSyncGamesSubnauticaComponent.cs" />
     <Compile Include="Patches\LifeSyncPlayerMenuAttachPatch.cs" />
     <Compile Include="Patches\PlayerToolPatches.cs" />
     <Compile Include="Patches\FlashlightModifiersPatch.cs" />
     <Compile Include="Patches\SeaglideModifiersPatch.cs" />
-    <Compile Include="MyFirstSubnauticaModPlugin.cs" />
+    <Compile Include="LifeSyncGamesSubnauticaPlugin.cs" />
+    <Compile Include="ConfigurationManagerAttributes.cs" />
     <Compile Include="Input\LifeSyncGameInputPaths.cs" />
     <Compile Include="Input\LifeSyncInputRegistration.cs" />
     <Compile Include="UI\PdaTheme.cs" />
@@ -105,7 +106,6 @@
     <Compile Include="UI\LifeSyncLoginMenu.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Services\Models\LifeSyncApiModels.cs" />
-    <Compile Include="Services\LifeSyncStartupTestKind.cs" />
     <Compile Include="Services\LifeSyncApiClient.cs" />
     <Compile Include="Services\RedeemCatalog.cs" />
     <Compile Include="Services\PlayerStatsApplier.cs" />

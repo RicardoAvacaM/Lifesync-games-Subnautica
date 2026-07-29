@@ -2,7 +2,7 @@ using BepInEx.Logging;
 using Nautilus.Handlers;
 using UnityEngine;
 
-namespace MyFirstSubnauticaMod.Input
+namespace LifeSyncGamesSubnautica.Input
 {
     /// <summary>
     /// Convierte <see cref="KeyCode"/> del cfg a rutas de teclado del Input System (Nautilus / GameInputHandler).
@@ -70,13 +70,13 @@ namespace MyFirstSubnauticaMod.Input
                 case KeyCode.Backspace: return GameInputHandler.Paths.Keyboard.Backspace;
                 case KeyCode.BackQuote: return GameInputHandler.Paths.Keyboard.Backquote;
                 default:
-                    if (!_warnedUnknown && key != KeyCode.F8)
+                    if (!_warnedUnknown && key != KeyCode.F10)
                     {
                         _warnedUnknown = true;
-                        log?.LogWarning($"[LifeSync] KeyCode {key} sin mapeo explícito; usando F8. Añade el mapeo en LifeSyncGameInputPaths o elige F1–F12 / letras / números.");
+                        log?.LogWarning($"[LifeSync] KeyCode {key} sin mapeo explícito; usando F10. Añade el mapeo en LifeSyncGameInputPaths o elige F1–F12 / letras / números.");
                     }
 
-                    return GameInputHandler.Paths.Keyboard.F8;
+                    return GameInputHandler.Paths.Keyboard.F10;
             }
         }
     }

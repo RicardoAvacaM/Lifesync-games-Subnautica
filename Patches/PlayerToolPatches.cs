@@ -1,6 +1,6 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 
-namespace MyFirstSubnauticaMod.Patches
+namespace LifeSyncGamesSubnautica.Patches
 {
     // TODO Review this file and update to your own requirements, or remove it altogether if not required
 
@@ -21,15 +21,15 @@ namespace MyFirstSubnauticaMod.Patches
         [HarmonyPrefix]
         public static bool Awake_Prefix(PlayerTool __instance)
         {
-            MyFirstSubnauticaModPlugin.Log.LogInfo("In PlayerTool Awake method Prefix.");
+            LifeSyncGamesSubnauticaPlugin.Log.LogInfo("In PlayerTool Awake method Prefix.");
             if(__instance.GetType() == typeof(Knife))
             {
                 Knife knife = __instance as Knife;
-                MyFirstSubnauticaModPlugin.Log.LogInfo($"Knife damage Before: {knife.damage}");
-                float damageMultiplier = MyFirstSubnauticaModPlugin.KnifeDamageMultiplier.Value;
-                int bonusDamage = MyFirstSubnauticaModPlugin.KnifeBonusDamage.Value;
+                LifeSyncGamesSubnauticaPlugin.Log.LogInfo($"Knife damage Before: {knife.damage}");
+                float damageMultiplier = LifeSyncGamesSubnauticaPlugin.KnifeDamageMultiplier.Value;
+                int bonusDamage = LifeSyncGamesSubnauticaPlugin.KnifeBonusDamage.Value;
                 knife.damage = knife.damage * damageMultiplier + bonusDamage;
-                MyFirstSubnauticaModPlugin.Log.LogInfo(
+                LifeSyncGamesSubnauticaPlugin.Log.LogInfo(
                     $"Knife damage After: {knife.damage} (mult={damageMultiplier}, bonus={bonusDamage})");
             }
             return true;

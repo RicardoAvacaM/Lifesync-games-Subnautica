@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
 
-namespace MyFirstSubnauticaMod.Services
+namespace LifeSyncGamesSubnautica.Services
 {
     /// <summary>Construye el JSON de POST /game-logs/sessions (sin JsonUtility por raw_log anidado).</summary>
     internal static class GameSessionLogPayloadBuilder
