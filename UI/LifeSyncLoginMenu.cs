@@ -892,6 +892,12 @@ namespace MyFirstSubnauticaMod.UI
 
             foreach (var row in _mechanicRows)
             {
+                // Solo listar mecánicas con receta local (las del API sin efecto implementado no se muestran).
+                if (!RedeemCatalog.TryGet(row.id_modifiable_mechanic_videogame, out var recipe))
+                {
+                    continue;
+                }
+
                 var card = PdaUi.CreatePanel("MechCard", _mechListContent, PdaTheme.PanelRaised);
                 PdaUi.SetPreferredHeight(card.gameObject, 104f);
 
@@ -909,10 +915,9 @@ namespace MyFirstSubnauticaMod.UI
                 desc.rectTransform.offsetMin = new Vector2(12f, 8f);
                 desc.rectTransform.offsetMax = new Vector2(0f, -34f);
 
-                var hasRecipe = RedeemCatalog.TryGet(row.id_modifiable_mechanic_videogame, out var recipe);
-                var costText = hasRecipe
-                    ? $"Costo: {RedeemCatalog.DescribeEffectiveCosts(row.id_modifiable_mechanic_videogame, recipe, _dimensionNameById)}"
-                    : (row.id_modifiable_mechanic_videogame > 0 ? "Sin receta local (canje no disponible)" : string.Empty);
+                var hasRecipe = true;
+                var costText =
+                    $"Costo: {RedeemCatalog.DescribeEffectiveCosts(row.id_modifiable_mechanic_videogame, recipe, _dimensionNameById)}";
                 var cost = PdaUi.CreateLabel("Cost", card.rectTransform, costText, 12, PdaTheme.AccentOrange, TextAlignmentOptions.BottomLeft, true);
                 cost.rectTransform.anchorMin = new Vector2(0f, 0f);
                 cost.rectTransform.anchorMax = new Vector2(0.72f, 0f);

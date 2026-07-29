@@ -22,7 +22,7 @@ namespace MyFirstSubnauticaMod
         // 1.0.0
         private const string MyGUID = "com.Ricardo.MyFirstSubnauticaMod";
         private const string PluginName = "MyFirstSubnauticaMod";
-        private const string VersionString = "1.0.45";
+        private const string VersionString = "1.0.46";
 
         internal static string ModVersion => VersionString;
 
