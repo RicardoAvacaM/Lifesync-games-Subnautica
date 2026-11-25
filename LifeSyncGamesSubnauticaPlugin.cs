@@ -23,7 +23,7 @@ namespace LifeSyncGamesSubnautica
         // 1.0.0
         private const string MyGUID = "com.lifesyncgames.subnautica";
         private const string PluginName = "LifeSync-Games-Subnautica";
-        private const string VersionString = "1.0.53";
+        private const string VersionString = "1.0.55";
 
         internal static string ModVersion => VersionString;
 
@@ -303,10 +303,8 @@ namespace LifeSyncGamesSubnautica
             Logger.LogInfo($"PluginName: {PluginName}, VersionString: {VersionString} is loading...");
             Harmony.PatchAll();
             Logger.LogInfo($"PluginName: {PluginName}, VersionString: {VersionString} is loaded.");
-
-            // Integración con la aplicación (overlay en localhost:7878). Comentada para quedar
-            // en la versión previa: el mod no abre el servidor y el overlay vuelve a Server Offline.
-            // GameAdapterServer.EnsureOnHost(gameObject);
+            Log = Logger;
+            GameAdapterServer.EnsureOnHost(gameObject);
 
             var serviceHost = CreatePersistentServiceHost();
             ApiClient = serviceHost.AddComponent<LifeSyncApiClient>();
@@ -315,8 +313,6 @@ namespace LifeSyncGamesSubnautica
             ContinuousPlayPenaltyService.EnsureOnHost(serviceHost);
 
             LifeSyncInputRegistration.EnsureRegistered(Logger, LifeSyncLoginMenuKey.Value);
-
-            Log = Logger;
         }
 
         /// <summary>JWT en claro en memoria. El .cfg guarda solo el blob DPAPI.</summary>
