@@ -50,6 +50,9 @@
       <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Subnautica\Subnautica_Data\Managed\Unity.InputSystem.dll</HintPath>
     </Reference>
     <Reference Include="System" />
+    <Reference Include="System.Security">
+      <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Subnautica\Subnautica_Data\Managed\System.Security.dll</HintPath>
+    </Reference>
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
@@ -112,6 +115,9 @@
     <Compile Include="Services\SessionProgressSnapshot.cs" />
     <Compile Include="Services\PlayerStatsSnapshot.cs" />
     <Compile Include="Services\GameSessionLogPayloadBuilder.cs" />
+    <Compile Include="Services\DpapiProtect.cs" />
+    <Compile Include="Services\GameAdapterProtocol.cs" />
+    <Compile Include="Services\GameAdapterServer.cs" />
     <Compile Include="Services\GameSessionLogService.cs" />
     <Compile Include="Services\ContinuousPlayPenaltyService.cs" />
     <Compile Include="Services\FlashlightModifiers.cs" />

@@ -1,4 +1,5 @@
-﻿using BepInEx;
+﻿using System;
+using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
 using HarmonyLib;
@@ -22,7 +23,7 @@ namespace LifeSyncGamesSubnautica
         // 1.0.0
         private const string MyGUID = "com.lifesyncgames.subnautica";
         private const string PluginName = "LifeSync-Games-Subnautica";
-        private const string VersionString = "1.0.49";
+        private const string VersionString = "1.0.53";
 
         internal static string ModVersion => VersionString;
 
@@ -84,6 +85,7 @@ namespace LifeSyncGamesSubnautica
         public static ConfigEntry<int> LifeSyncApiTimeoutSeconds;
         /// <summary>videogame_id en Core API (redeem, mechanics, logger).</summary>
         public static ConfigEntry<int> LifeSyncApiTestVideogameId;
+        /// <summary>Blob DPAPI del Bearer (prefijo dpapi:). Usar <see cref="GetBearerToken"/> / <see cref="SetBearerTokenAndSave"/>.</summary>
         public static ConfigEntry<string> LifeSyncApiBearerToken;
         /// <summary>Cache de <c>id_players</c> desde GET lsg-auth/whoami (tras login); usado para puntos por atributo.</summary>
         public static ConfigEntry<int> LifeSyncCachedPlayerId;
@@ -92,6 +94,10 @@ namespace LifeSyncGamesSubnautica
         private static readonly Harmony Harmony = new Harmony(MyGUID);
         public static ManualLogSource Log = new ManualLogSource(PluginName);
         internal static LifeSyncApiClient ApiClient { get; private set; }
+
+        private static readonly object BearerLock = new object();
+        private static string _bearerPlain = string.Empty;
+        private static bool _bearerCacheValid;
 
         /// <summary>
         /// Obtiene un <see cref="LifeSyncApiClient"/> usable: estático, búsqueda en escena, o recreación si el host DDOL se destruyó.
@@ -135,7 +141,7 @@ namespace LifeSyncGamesSubnautica
             client.Initialize(LifeSyncApiBaseUrl.Value, LifeSyncApiTimeoutSeconds.Value);
             client.SetAuthBaseUrl(LifeSyncAuthBaseUrl.Value);
             client.SetPutSingleAttributePath("player_attributes_single");
-            client.SetBearerToken(LifeSyncApiBearerToken.Value);
+            client.SetBearerToken(GetBearerToken());
             var logSource = Instance != null ? Instance.Logger : Log;
             client.SetLogger(logSource);
         }
@@ -276,7 +282,7 @@ namespace LifeSyncGamesSubnautica
                 "LifeSync API",
                 "Bearer Token (optional)",
                 string.Empty,
-                Hidden("Token de sesión (se rellena al iniciar sesión con F10)."));
+                Hidden("Token de sesión cifrado con DPAPI (se rellena al iniciar sesión con F10)."));
 
             LifeSyncCachedPlayerId = Config.Bind(
                 "LifeSync API",
@@ -291,11 +297,16 @@ namespace LifeSyncGamesSubnautica
                 Hidden("Revisión interna de migración de defaults."));
 
             ApplyLifeSyncSettingsMigrationIfNeeded();
+            MigrateBearerTokenIfPlaintext();
 
             // Apply all of our patches
             Logger.LogInfo($"PluginName: {PluginName}, VersionString: {VersionString} is loading...");
             Harmony.PatchAll();
             Logger.LogInfo($"PluginName: {PluginName}, VersionString: {VersionString} is loaded.");
+
+            // Integración con la aplicación (overlay en localhost:7878). Comentada para quedar
+            // en la versión previa: el mod no abre el servidor y el overlay vuelve a Server Offline.
+            // GameAdapterServer.EnsureOnHost(gameObject);
 
             var serviceHost = CreatePersistentServiceHost();
             ApiClient = serviceHost.AddComponent<LifeSyncApiClient>();
@@ -306,6 +317,80 @@ namespace LifeSyncGamesSubnautica
             LifeSyncInputRegistration.EnsureRegistered(Logger, LifeSyncLoginMenuKey.Value);
 
             Log = Logger;
+        }
+
+        /// <summary>JWT en claro en memoria. El .cfg guarda solo el blob DPAPI.</summary>
+        internal static string GetBearerToken()
+        {
+            lock (BearerLock)
+            {
+                if (_bearerCacheValid)
+                {
+                    return _bearerPlain ?? string.Empty;
+                }
+
+                var stored = LifeSyncApiBearerToken != null ? LifeSyncApiBearerToken.Value : null;
+                if (string.IsNullOrWhiteSpace(stored))
+                {
+                    _bearerPlain = string.Empty;
+                    _bearerCacheValid = true;
+                    return string.Empty;
+                }
+
+                if (!DpapiProtect.TryUnprotect(stored, out var plain))
+                {
+                    Log?.LogWarning(
+                        "[LifeSync][Auth] No se pudo descifrar el token DPAPI (otro usuario de Windows o blob dañado). Inicia sesión de nuevo.");
+                    _bearerPlain = string.Empty;
+                    _bearerCacheValid = true;
+                    return string.Empty;
+                }
+
+                _bearerPlain = plain ?? string.Empty;
+                _bearerCacheValid = true;
+                return _bearerPlain;
+            }
+        }
+
+        /// <summary>Guarda el JWT cifrado en el .cfg y actualiza la caché en memoria. Vacío borra ambos.</summary>
+        internal static void SetBearerTokenAndSave(string plaintext)
+        {
+            lock (BearerLock)
+            {
+                _bearerPlain = plaintext ?? string.Empty;
+                _bearerCacheValid = true;
+                if (LifeSyncApiBearerToken == null)
+                {
+                    return;
+                }
+
+                try
+                {
+                    LifeSyncApiBearerToken.Value = string.IsNullOrEmpty(_bearerPlain)
+                        ? string.Empty
+                        : DpapiProtect.ProtectToStored(_bearerPlain);
+                }
+                catch (Exception ex)
+                {
+                    Log?.LogWarning($"[LifeSync][Auth] No se pudo cifrar el token con DPAPI: {ex.Message}");
+                    LifeSyncApiBearerToken.Value = string.Empty;
+                }
+
+                Instance?.Config.Save();
+            }
+        }
+
+        /// <summary>Si el .cfg aún tiene el JWT en claro (versiones &lt; 1.0.50), lo reescribe como blob DPAPI.</summary>
+        private void MigrateBearerTokenIfPlaintext()
+        {
+            var stored = LifeSyncApiBearerToken != null ? LifeSyncApiBearerToken.Value : null;
+            if (string.IsNullOrEmpty(stored) || DpapiProtect.IsProtected(stored))
+            {
+                return;
+            }
+
+            SetBearerTokenAndSave(stored);
+            Logger.LogInfo("[LifeSync][Auth] Token legado en claro migrado a DPAPI en el .cfg.");
         }
 
         private static ConfigDescription Hidden(string description, AcceptableValueBase acceptableValues = null)

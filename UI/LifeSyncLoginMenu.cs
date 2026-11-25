@@ -107,7 +107,8 @@ namespace LifeSyncGamesSubnautica.UI
         private void OnDestroy()
         {
             SetInputActive(false);
-            ReleaseGameplayPause();
+            // Pausa del juego al abrir el menú LSG: desactivada temporalmente para pruebas.
+            // ReleaseGameplayPause();
             if (Instance == this)
             {
                 Instance = null;
@@ -163,13 +164,14 @@ namespace LifeSyncGamesSubnautica.UI
                 _dimensionNameById = null;
                 _mechanicRows = null;
 
-                var bearer = LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value;
+                var bearer = LifeSyncGamesSubnauticaPlugin.GetBearerToken();
                 _panel = HasStoredBearer(bearer) ? MenuPanel.Session : MenuPanel.Login;
 
                 EnsureUi();
                 _canvasGo.SetActive(true);
                 ApplyPanelVisibility();
-                ApplyGameplayPause(true);
+                // Pausa del juego al abrir el menú LSG: desactivada temporalmente para pruebas.
+                // ApplyGameplayPause(true);
                 ApplyCursorForMenu(true);
                 SetInputActive(true);
             }
@@ -194,7 +196,8 @@ namespace LifeSyncGamesSubnautica.UI
             }
 
             SetInputActive(false);
-            ReleaseGameplayPause();
+            // Pausa del juego al abrir el menú LSG: desactivada temporalmente para pruebas.
+            // ReleaseGameplayPause();
             ApplyCursorForMenu(false);
         }
 
@@ -261,7 +264,7 @@ namespace LifeSyncGamesSubnautica.UI
         {
             yield return GameSessionLogService.EndSessionUploadRoutine();
 
-            LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value = string.Empty;
+            LifeSyncGamesSubnauticaPlugin.SetBearerTokenAndSave(string.Empty);
             LifeSyncGamesSubnauticaPlugin.LifeSyncCachedPlayerId.Value = 0;
             var client = LifeSyncGamesSubnauticaPlugin.ResolveApiClient();
             client?.SetBearerToken(string.Empty);
@@ -525,7 +528,7 @@ namespace LifeSyncGamesSubnautica.UI
                 PdaTheme.TextMuted,
                 TextAlignmentOptions.TopLeft,
                 true);
-            PlaceTop(_fatigueHintLabel.rectTransform, ref y, 52f, 8f);
+            PlaceTop(_fatigueHintLabel.rectTransform, ref y, 68f, 8f);
 
             var statusBox = PdaUi.CreatePanel("StatusBox", rt, PdaTheme.Panel);
             statusBox.rectTransform.anchorMin = new Vector2(0f, 0f);
@@ -577,7 +580,8 @@ namespace LifeSyncGamesSubnautica.UI
 
             sb.AppendLine();
             sb.Append("Acumulado permanente: −").Append(healthPenalty).Append(" vida máx., −")
-                .Append(oxygenPenalty).Append(" oxígeno máx.");
+                .Append(oxygenPenalty).Append(" oxígeno máx. ");
+            sb.Append("Aviso en pantalla <b>10 min</b> antes de la primera y <b>5 min</b> antes de las siguientes.");
             return sb.ToString();
         }
 
@@ -988,7 +992,7 @@ namespace LifeSyncGamesSubnautica.UI
             }
 
             SyncBearerOnClient(client);
-            if (string.IsNullOrWhiteSpace(LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value))
+            if (string.IsNullOrWhiteSpace(LifeSyncGamesSubnauticaPlugin.GetBearerToken()))
             {
                 _mechanicsStatus = "Sin token. Inicia sesión primero.";
                 _mechanicsBusy = false;
@@ -1051,7 +1055,7 @@ namespace LifeSyncGamesSubnautica.UI
             }
 
             SyncBearerOnClient(client);
-            if (string.IsNullOrWhiteSpace(LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value))
+            if (string.IsNullOrWhiteSpace(LifeSyncGamesSubnauticaPlugin.GetBearerToken()))
             {
                 _mechanicsStatus = "Sin token. Inicia sesión primero.";
                 yield break;
@@ -1168,7 +1172,7 @@ namespace LifeSyncGamesSubnautica.UI
             }
 
             SyncBearerOnClient(client);
-            if (string.IsNullOrWhiteSpace(LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value))
+            if (string.IsNullOrWhiteSpace(LifeSyncGamesSubnauticaPlugin.GetBearerToken()))
             {
                 if (forceRefresh)
                 {
@@ -1234,7 +1238,7 @@ namespace LifeSyncGamesSubnautica.UI
             }
 
             SyncBearerOnClient(client);
-            if (string.IsNullOrWhiteSpace(LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value))
+            if (string.IsNullOrWhiteSpace(LifeSyncGamesSubnauticaPlugin.GetBearerToken()))
             {
                 yield break;
             }
@@ -1300,7 +1304,7 @@ namespace LifeSyncGamesSubnautica.UI
             }
 
             SyncBearerOnClient(client);
-            if (string.IsNullOrWhiteSpace(LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value))
+            if (string.IsNullOrWhiteSpace(LifeSyncGamesSubnauticaPlugin.GetBearerToken()))
             {
                 _pointsStatus = "Sin token. Inicia sesión primero.";
                 _pointsBusy = false;
@@ -1391,9 +1395,9 @@ namespace LifeSyncGamesSubnautica.UI
 
         private static void SyncBearerOnClient(LifeSyncApiClient client)
         {
-            if (client != null && !string.IsNullOrWhiteSpace(LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value))
+            if (client != null && !string.IsNullOrWhiteSpace(LifeSyncGamesSubnauticaPlugin.GetBearerToken()))
             {
-                client.SetBearerToken(LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value.Trim());
+                client.SetBearerToken(LifeSyncGamesSubnauticaPlugin.GetBearerToken().Trim());
             }
         }
 
@@ -1443,7 +1447,7 @@ namespace LifeSyncGamesSubnautica.UI
 
             SyncBearerOnClient(client);
 
-            if (string.IsNullOrWhiteSpace(LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value))
+            if (string.IsNullOrWhiteSpace(LifeSyncGamesSubnauticaPlugin.GetBearerToken()))
             {
                 _sessionStatus = "No hay token guardado. Cierra el menú y ábrelo de nuevo para ver el inicio de sesión.";
                 yield break;
@@ -1508,7 +1512,7 @@ namespace LifeSyncGamesSubnautica.UI
 
             SyncBearerOnClient(client);
 
-            if (string.IsNullOrWhiteSpace(LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value))
+            if (string.IsNullOrWhiteSpace(LifeSyncGamesSubnauticaPlugin.GetBearerToken()))
             {
                 _sessionStatus = "No hay token para renovar. Inicia sesión primero.";
                 yield break;
@@ -1558,9 +1562,8 @@ namespace LifeSyncGamesSubnautica.UI
                 yield break;
             }
 
-            LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value = token.access_token;
+            LifeSyncGamesSubnauticaPlugin.SetBearerTokenAndSave(token.access_token);
             client.SetBearerToken(token.access_token);
-            LifeSyncGamesSubnauticaPlugin.Instance?.Config.Save();
             _sessionStatus = "Token renovado correctamente. Ya está guardado en la configuración.";
             LifeSyncGamesSubnauticaPlugin.Log.LogInfo("[LifeSync][Auth] Token renovado y guardado.");
             if (LifeSyncGamesSubnauticaPlugin.LifeSyncCachedPlayerId.Value <= 0)
@@ -1629,9 +1632,8 @@ namespace LifeSyncGamesSubnautica.UI
                 yield break;
             }
 
-            LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value = token.access_token;
+            LifeSyncGamesSubnauticaPlugin.SetBearerTokenAndSave(token.access_token);
             client.SetBearerToken(token.access_token);
-            LifeSyncGamesSubnauticaPlugin.Instance?.Config.Save();
             _password = string.Empty;
             if (_passwordInput != null)
             {

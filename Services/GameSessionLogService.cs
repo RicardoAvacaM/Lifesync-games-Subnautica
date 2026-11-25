@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Net;
@@ -59,6 +60,8 @@ namespace LifeSyncGamesSubnautica.Services
         {
             Application.quitting += OnApplicationQuitting;
 
+            MigratePlaintextCsvIfNeeded();
+
             if (_sessionActive)
             {
                 RestartSampleRoutine();
@@ -84,7 +87,7 @@ namespace LifeSyncGamesSubnautica.Services
 
         private static bool HasBearerToken()
         {
-            return !string.IsNullOrWhiteSpace(LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value);
+            return !string.IsNullOrWhiteSpace(LifeSyncGamesSubnauticaPlugin.GetBearerToken());
         }
 
         private static void EnsureInstance()
@@ -299,7 +302,7 @@ namespace LifeSyncGamesSubnautica.Services
                 }
 
                 var url = baseUrl + "game-logs/sessions";
-                var token = LifeSyncGamesSubnauticaPlugin.LifeSyncApiBearerToken.Value.Trim();
+                var token = LifeSyncGamesSubnauticaPlugin.GetBearerToken().Trim();
                 var body = Encoding.UTF8.GetBytes(payloadJson ?? "{}");
 
                 var request = (HttpWebRequest)WebRequest.Create(url);
@@ -358,32 +361,123 @@ namespace LifeSyncGamesSubnautica.Services
             }
         }
 
+        internal const string LocalCsvPlainFileName = "stats_live.csv";
+        internal const string LocalCsvDpapiFileName = "stats_live.dpapi";
+        internal const string LocalCsvDpapiHeader = "LIFESYNC_DPAPI_CSV_V1";
+
+        private static string GetLoggerDirectory()
+        {
+            var loggerDir = Path.Combine(Paths.PluginPath, "LifeSync-Games-Subnautica", "logger");
+            Directory.CreateDirectory(loggerDir);
+            return loggerDir;
+        }
+
+        /// <summary>
+        /// Pasa un <c>stats_live.csv</c> legado (texto plano) a <c>stats_live.dpapi</c> y borra el CSV en claro.
+        /// </summary>
+        internal static void MigratePlaintextCsvIfNeeded()
+        {
+            try
+            {
+                var loggerDir = GetLoggerDirectory();
+                var csvPath = Path.Combine(loggerDir, LocalCsvPlainFileName);
+                if (!File.Exists(csvPath))
+                {
+                    return;
+                }
+
+                var lines = File.ReadAllLines(csvPath);
+                var blobs = new List<string>();
+                for (var i = 0; i < lines.Length; i++)
+                {
+                    var line = lines[i] != null ? lines[i].Trim() : string.Empty;
+                    if (line.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    if (i == 0 && line.StartsWith("utc_time", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    if (DpapiProtect.IsProtected(line))
+                    {
+                        blobs.Add(line);
+                        continue;
+                    }
+
+                    var blob = DpapiProtect.ProtectToStored(line);
+                    if (string.IsNullOrEmpty(blob) || !DpapiProtect.IsProtected(blob))
+                    {
+                        LifeSyncGamesSubnauticaPlugin.Log.LogWarning(
+                            "[LifeSync][Logger] No se pudo cifrar una fila del CSV legado; se conserva el archivo en claro.");
+                        return;
+                    }
+
+                    blobs.Add(blob);
+                }
+
+                var dpapiPath = Path.Combine(loggerDir, LocalCsvDpapiFileName);
+                var dpapiExists = File.Exists(dpapiPath) && new FileInfo(dpapiPath).Length > 0;
+                using (var writer = new StreamWriter(dpapiPath, append: true, Encoding.UTF8))
+                {
+                    if (!dpapiExists)
+                    {
+                        writer.WriteLine(LocalCsvDpapiHeader);
+                    }
+
+                    for (var i = 0; i < blobs.Count; i++)
+                    {
+                        writer.WriteLine(blobs[i]);
+                    }
+                }
+
+                File.Delete(csvPath);
+                LifeSyncGamesSubnauticaPlugin.Log.LogInfo(
+                    $"[LifeSync][Logger] CSV legado cifrado ({blobs.Count} filas) y eliminado: {csvPath}");
+            }
+            catch (Exception ex)
+            {
+                LifeSyncGamesSubnauticaPlugin.Log.LogWarning(
+                    $"[LifeSync][Logger] No se migró el CSV legado a DPAPI: {ex.Message}");
+            }
+        }
+
         private static void WriteLocalCsvFallback(PlayerStatsSnapshot stats)
         {
             try
             {
-                var loggerDir = Path.Combine(Paths.PluginPath, "LifeSync-Games-Subnautica", "logger");
-                Directory.CreateDirectory(loggerDir);
+                var loggerDir = GetLoggerDirectory();
 
-                var path = Path.Combine(loggerDir, "stats_live.csv");
+                var path = Path.Combine(loggerDir, LocalCsvDpapiFileName);
+                var row = stats.ToCsvRow();
+                var blob = DpapiProtect.ProtectToStored(row);
+                if (string.IsNullOrEmpty(blob) || !DpapiProtect.IsProtected(blob))
+                {
+                    LifeSyncGamesSubnauticaPlugin.Log.LogWarning(
+                        "[LifeSync][Logger] DPAPI no cifró la muestra; no se escribe CSV en claro.");
+                    return;
+                }
+
                 var writeHeader = !File.Exists(path) || new FileInfo(path).Length == 0;
                 using (var writer = new StreamWriter(path, append: true, Encoding.UTF8))
                 {
                     if (writeHeader)
                     {
-                        writer.WriteLine(string.Join(",", PlayerStatsSnapshot.CsvHeader));
+                        writer.WriteLine(LocalCsvDpapiHeader);
                     }
 
-                    writer.WriteLine(stats.ToCsvRow());
+                    writer.WriteLine(blob);
                 }
 
                 LifeSyncGamesSubnauticaPlugin.Log.LogInfo(
-                    $"[LifeSync][Logger] Sample guardado en CSV local: {path}");
+                    $"[LifeSync][Logger] Sample cifrado (DPAPI) guardado en: {path}");
             }
             catch (Exception ex)
             {
                 LifeSyncGamesSubnauticaPlugin.Log.LogWarning(
-                    $"[LifeSync][Logger] No se pudo escribir CSV local: {ex.Message}");
+                    $"[LifeSync][Logger] No se pudo escribir CSV local cifrado: {ex.Message}");
             }
         }
 

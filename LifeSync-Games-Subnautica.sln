@@ -5,6 +5,8 @@ VisualStudioVersion = 17.14.36414.22 d17.14
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LifeSync-Games-Subnautica", "LifeSync-Games-Subnautica.csproj", "{1FA21C6A-D9EB-42D6-AF5D-4F14585A40D5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LifeSync-Games-Subnautica.Tests", "LifeSync-Games-Subnautica.Tests\LifeSync-Games-Subnautica.Tests.csproj", "{B2C8E4F1-9A7D-4C3E-8F21-6D5A0B9E1234}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{1FA21C6A-D9EB-42D6-AF5D-4F14585A40D5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1FA21C6A-D9EB-42D6-AF5D-4F14585A40D5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1FA21C6A-D9EB-42D6-AF5D-4F14585A40D5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B2C8E4F1-9A7D-4C3E-8F21-6D5A0B9E1234}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B2C8E4F1-9A7D-4C3E-8F21-6D5A0B9E1234}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B2C8E4F1-9A7D-4C3E-8F21-6D5A0B9E1234}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B2C8E4F1-9A7D-4C3E-8F21-6D5A0B9E1234}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

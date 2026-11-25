@@ -218,6 +218,11 @@ namespace LifeSyncGamesSubnautica.Services
             return _byMechanicVideogameId.TryGetValue(mechanicVideogameId, out recipe);
         }
 
+        /// <summary>
+        /// Solo para tests unitarios: si no es null, sustituye el string de escalado del cfg.
+        /// </summary>
+        internal static string EscalationCountsOverride { get; set; }
+
         /// <summary>Canjes exitosos previos de esta mecánica (desde cfg).</summary>
         internal static int GetTimesRedeemed(int mechanicVideogameId)
         {
@@ -226,8 +231,18 @@ namespace LifeSyncGamesSubnautica.Services
                 return 0;
             }
 
-            var map = ParseCounts(LifeSyncGamesSubnauticaPlugin.RedeemCostEscalationCounts?.Value);
+            var map = ParseCounts(GetEscalationCountsRaw());
             return map.TryGetValue(mechanicVideogameId, out var n) ? Math.Max(0, n) : 0;
+        }
+
+        private static string GetEscalationCountsRaw()
+        {
+            if (EscalationCountsOverride != null)
+            {
+                return EscalationCountsOverride;
+            }
+
+            return LifeSyncGamesSubnauticaPlugin.RedeemCostEscalationCounts?.Value;
         }
 
         /// <summary>
@@ -267,13 +282,18 @@ namespace LifeSyncGamesSubnautica.Services
                 return;
             }
 
-            var map = ParseCounts(LifeSyncGamesSubnauticaPlugin.RedeemCostEscalationCounts?.Value);
+            var map = ParseCounts(GetEscalationCountsRaw());
             map.TryGetValue(mechanicVideogameId, out var n);
             map[mechanicVideogameId] = n + 1;
 
-            if (LifeSyncGamesSubnauticaPlugin.RedeemCostEscalationCounts != null)
+            var serialized = SerializeCounts(map);
+            if (EscalationCountsOverride != null)
             {
-                LifeSyncGamesSubnauticaPlugin.RedeemCostEscalationCounts.Value = SerializeCounts(map);
+                EscalationCountsOverride = serialized;
+            }
+            else if (LifeSyncGamesSubnauticaPlugin.RedeemCostEscalationCounts != null)
+            {
+                LifeSyncGamesSubnauticaPlugin.RedeemCostEscalationCounts.Value = serialized;
                 LifeSyncGamesSubnauticaPlugin.Instance?.Config.Save();
             }
 
@@ -282,7 +302,8 @@ namespace LifeSyncGamesSubnautica.Services
                 $"(próximo +{map[mechanicVideogameId] * CostIncreasePerRedeem} pts por monto).");
         }
 
-        private static Dictionary<int, int> ParseCounts(string raw)
+        /// <summary>Expone el parseo de contadores (también usado por tests).</summary>
+        internal static Dictionary<int, int> ParseCounts(string raw)
         {
             var map = new Dictionary<int, int>();
             if (string.IsNullOrWhiteSpace(raw))
@@ -317,7 +338,8 @@ namespace LifeSyncGamesSubnautica.Services
             return map;
         }
 
-        private static string SerializeCounts(Dictionary<int, int> map)
+        /// <summary>Expone la serialización de contadores (también usado por tests).</summary>
+        internal static string SerializeCounts(Dictionary<int, int> map)
         {
             if (map == null || map.Count == 0)
             {
